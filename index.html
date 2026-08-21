@@ -8,7 +8,7 @@
         :root {
             --bg-dark: #12121e;
             --bg-card: #1c1c2e;
-            --bg-canvas: #f5f0e6;
+            --bg-canvas: #eeeae1;
             --ink: #1a1a1a;
             --gold: #d4a44a;
             --gold-bright: #e8c86a;
@@ -211,8 +211,8 @@
             display: block;
             border-radius: 4px;
             background: var(--bg-canvas);
-            width: 220px;
-            height: 220px;
+            width: min(260px, 72vw);
+            height: min(260px, 72vw);
             cursor: pointer;
         }
         .canvas-caption {
@@ -487,7 +487,7 @@
                 </div>
                 <div class="canvas-wrapper">
                     <div class="canvas-frame">
-                        <canvas id="mainCanvas" width="220" height="220"></canvas>
+                        <canvas id="mainCanvas" width="520" height="520"></canvas>
                     </div>
                     <div class="canvas-caption" id="canvasCaption">
                         Wpisz słowo i kliknij <span class="highlight">Generuj</span>
@@ -496,6 +496,7 @@
                 <div class="status-message empty" id="statusMessage"></div>
                 <div class="button-row">
                     <button class="btn btn-success" id="saveBtn" disabled>💾 Zapisz do bazy</button>
+                    <button class="btn btn-secondary" id="downloadBtn" disabled>⬇️ Pobierz PNG</button>
                     <button class="btn btn-secondary" id="clearBtn">🗑️ Wyczyść</button>
                 </div>
             </div>
@@ -553,7 +554,7 @@
             for (let i = 0; i < str.length; i++) {
                 hash = ((hash << 5) + hash + str.charCodeAt(i)) | 0;
             }
-            return Math.abs(hash);
+            return hash >>> 0;
         }
 
         /** Mulberry32 PRNG — deterministyczny generator liczb pseudolosowych */
@@ -581,108 +582,332 @@
          * Generuje dane znaku (listę kresek) na podstawie słowa.
          * Kreski są definiowane w znormalizowanych współrzędnych [0,1].
          */
+        const GLYPH_VERSION = 2;
+
+        /**
+         * Generuje spójny, kanciasty glif inspirowany wzorem referencyjnym.
+         * Zamiast niezależnych losowych kresek używa jednej konstrukcji bazowej
+         * oraz kilku charakterystycznych akcentów: pierścieni, nacięć i kresek.
+         */
         function generateGlyphStrokes(word) {
-            const seed = hashString(word);
+            const normalizedWord = word.trim().toLocaleLowerCase('pl-PL');
+            const seed = hashString(normalizedWord);
             const rng = mulberry32(seed);
-
-            // Liczba kresek zależna od długości słowa i hasha
-            const baseStrokes = 4 + (word.length % 5) + Math.floor(rng() * 5); // 4-13
-            const numStrokes = Math.min(baseStrokes, 14);
-
-            // Typ kompozycji (wpływa na rozmieszczenie kresek)
-            const composition = Math.floor(rng() * 6);
-            // 0: pojedyncza, 1: lewo-prawo, 2: góra-dół, 3: zamknięta, 4: diagonalna, 5: rozproszona
-
             const strokes = [];
-            const gridCols = 5;
-            const gridRows = 5;
-            const margin = 0.08;
-            const cellW = (1 - 2 * margin) / (gridCols - 1);
-            const cellH = (1 - 2 * margin) / (gridRows - 1);
+            const width = 2.35 + rng() * 0.45;
 
-            function gridPoint(col, row) {
-                return {
-                    x: margin + col * cellW,
-                    y: margin + row * cellH
-                };
+            const line = (a, b, customWidth = width) => ({
+                kind: 'line', points: [a, b], width: customWidth
+            });
+            const path = (points, customWidth = width) => ({
+                kind: 'polyline', points, width: customWidth
+            });
+            const ring = (center, radius = 0.027, customWidth = width * 0.9) => ({
+                kind: 'circle', center, radius, width: customWidth
+            });
+            const dot = (center, radius = 0.011) => ({
+                kind: 'dot', center, radius
+            });
+
+            // Dziesięć czytelnych szkieletów. Dalsze modyfikatory sprawiają,
+            // że nawet słowa korzystające z tego samego szkieletu są różne.
+            const templates = [
+                () => ({
+                    strokes: [
+                        path([[0.27, 0.72], [0.50, 0.19], [0.75, 0.72]]),
+                        line([0.75, 0.72], [0.36, 0.72])
+                    ],
+                    anchors: [[0.50, 0.19], [0.27, 0.72], [0.75, 0.72]],
+                    bars: [0.20, 0.43, 'vertical']
+                }),
+                () => ({
+                    strokes: [
+                        path([[0.50, 0.79], [0.50, 0.42], [0.27, 0.20]]),
+                        line([0.50, 0.42], [0.74, 0.18])
+                    ],
+                    anchors: [[0.50, 0.79], [0.27, 0.20], [0.74, 0.18]],
+                    bars: [0.68, 0.62, 'horizontal']
+                }),
+                () => ({
+                    strokes: [
+                        path([[0.22, 0.72], [0.51, 0.69], [0.42, 0.47], [0.72, 0.47], [0.62, 0.22]])
+                    ],
+                    anchors: [[0.22, 0.72], [0.62, 0.22], [0.42, 0.47]],
+                    bars: [0.26, 0.30, 'horizontal']
+                }),
+                () => ({
+                    strokes: [
+                        path([[0.31, 0.18], [0.31, 0.68], [0.69, 0.68]]),
+                        line([0.69, 0.68], [0.72, 0.56])
+                    ],
+                    anchors: [[0.31, 0.18], [0.31, 0.68], [0.69, 0.68]],
+                    bars: [0.58, 0.28, 'vertical']
+                }),
+                () => ({
+                    strokes: [
+                        path([[0.25, 0.69], [0.27, 0.27], [0.70, 0.31], [0.64, 0.68]]),
+                        line([0.64, 0.68], [0.40, 0.69])
+                    ],
+                    anchors: [[0.25, 0.69], [0.27, 0.27], [0.70, 0.31]],
+                    bars: [0.73, 0.49, 'vertical']
+                }),
+                () => ({
+                    strokes: [
+                        path([[0.22, 0.27], [0.48, 0.72], [0.74, 0.21]]),
+                        line([0.48, 0.72], [0.63, 0.81])
+                    ],
+                    anchors: [[0.22, 0.27], [0.48, 0.72], [0.74, 0.21]],
+                    bars: [0.29, 0.52, 'horizontal']
+                }),
+                () => ({
+                    strokes: [
+                        line([0.24, 0.25], [0.76, 0.25]),
+                        path([[0.50, 0.25], [0.49, 0.73], [0.63, 0.79]])
+                    ],
+                    anchors: [[0.24, 0.25], [0.76, 0.25], [0.49, 0.73]],
+                    bars: [0.26, 0.56, 'horizontal']
+                }),
+                () => ({
+                    strokes: [
+                        path([[0.22, 0.73], [0.62, 0.68], [0.43, 0.45], [0.74, 0.23]])
+                    ],
+                    anchors: [[0.22, 0.73], [0.43, 0.45], [0.74, 0.23]],
+                    bars: [0.28, 0.25, 'horizontal']
+                }),
+                () => ({
+                    strokes: [
+                        line([0.45, 0.78], [0.45, 0.22]),
+                        line([0.45, 0.47], [0.22, 0.31]),
+                        line([0.45, 0.58], [0.73, 0.37])
+                    ],
+                    anchors: [[0.45, 0.78], [0.45, 0.22], [0.22, 0.31], [0.73, 0.37]],
+                    bars: [0.68, 0.67, 'horizontal']
+                }),
+                () => ({
+                    strokes: [
+                        path([[0.27, 0.73], [0.27, 0.36], [0.48, 0.20], [0.72, 0.38], [0.72, 0.68]]),
+                        line([0.72, 0.68], [0.57, 0.68])
+                    ],
+                    anchors: [[0.27, 0.73], [0.48, 0.20], [0.72, 0.68]],
+                    bars: [0.22, 0.52, 'vertical']
+                })
+            ];
+
+            const template = templates[seed % templates.length]();
+            strokes.push(...template.strokes);
+
+            // Pierścień przy jednym z węzłów jest najmocniejszą cechą wzoru.
+            const ringIndex = (seed >>> 8) % template.anchors.length;
+            const ringAnchor = template.anchors[ringIndex];
+            strokes.push(ring(ringAnchor, 0.028 + rng() * 0.010));
+
+            // Czasem drugi, mniejszy pierścień lub kropka równoważy kompozycję.
+            if (rng() > 0.54) {
+                const second = template.anchors[(ringIndex + 1 + ((seed >>> 12) % Math.max(1, template.anchors.length - 1))) % template.anchors.length];
+                strokes.push(rng() > 0.38 ? ring(second, 0.018 + rng() * 0.006) : dot(second));
             }
 
-            function randomGridPoint() {
-                const col = Math.floor(rng() * gridCols);
-                const row = Math.floor(rng() * gridRows);
-                const p = gridPoint(col, row);
-                // Dodaj lekki szum
-                p.x += (rng() - 0.5) * cellW * 0.6;
-                p.y += (rng() - 0.5) * cellH * 0.6;
-                return p;
-            }
-
-            function compositionZone(comp, index) {
-                // Zwraca zakres kolumn/wierszy dla danej kompozycji
-                const zones = {
-                    0: { cols: [0, 4], rows: [0, 4] }, // pełna
-                    1: { cols: [index % 2 === 0 ? 0 : 2, index % 2 === 0 ? 2 : 4], rows: [0, 4] }, // lewo-prawo
-                    2: { cols: [0, 4], rows: [index % 2 === 0 ? 0 : 2, index % 2 === 0 ? 2 : 4] }, // góra-dół
-                    3: { cols: [0, 1, 3, 4], rows: [0, 1, 3, 4] }, // zamknięta (brzegi)
-                    4: { cols: [0, 4], rows: [0, 4] }, // diagonalna
-                    5: { cols: [0, 4], rows: [0, 4] }, // rozproszona
-                };
-                return zones[comp] || zones[0];
-            }
-
-            function getStrokeType() {
-                // Typy kresek: 0-pozioma, 1-pionowa, 2-kropka, 3-lewy skos, 4-prawy skos, 5-hak, 6-łuk
-                return Math.floor(rng() * 7);
-            }
-
-            for (let i = 0; i < numStrokes; i++) {
-                const type = getStrokeType();
-                const zone = compositionZone(composition, i);
-                const start = randomGridPoint();
-                const end = randomGridPoint();
-
-                // Dostosuj pozycje do strefy kompozycji
-                if (composition === 1) {
-                    const half = zone.cols[0] >= 2 ? 0.5 : 0;
-                    start.x = half + rng() * 0.45;
-                    end.x = half + rng() * 0.45;
-                } else if (composition === 2) {
-                    const half = zone.rows[0] >= 2 ? 0.5 : 0;
-                    start.y = half + rng() * 0.45;
-                    end.y = half + rng() * 0.45;
+            // Dwie do czterech równoległych kresek, jak na materiale referencyjnym.
+            const barCount = 2 + ((seed >>> 14) % 3);
+            const [baseBarX, baseBarY, baseOrientation] = template.bars;
+            const barX = baseBarX + (rng() - 0.5) * 0.055;
+            const barY = baseBarY + (rng() - 0.5) * 0.055;
+            const orientation = ((seed >>> 17) & 1)
+                ? (baseOrientation === 'vertical' ? 'horizontal' : 'vertical')
+                : baseOrientation;
+            const barLength = 0.10 + rng() * 0.045;
+            const barGap = 0.027;
+            for (let i = 0; i < barCount; i++) {
+                const offset = (i - (barCount - 1) / 2) * barGap;
+                if (orientation === 'vertical') {
+                    strokes.push(line(
+                        [barX + offset, barY - barLength / 2],
+                        [barX + offset, barY + barLength / 2],
+                        width * 0.82
+                    ));
+                } else {
+                    strokes.push(line(
+                        [barX - barLength / 2, barY + offset],
+                        [barX + barLength / 2, barY + offset],
+                        width * 0.82
+                    ));
                 }
-
-                strokes.push({
-                    type,
-                    start: { ...start },
-                    end: { ...end },
-                    width: 1.5 + rng() * 2.5, // szerokość kreski
-                    control: type === 6 ? {
-                        x: lerp(start.x, end.x, 0.3) + (rng() - 0.5) * 0.25,
-                        y: lerp(start.y, end.y, 0.5) + (rng() - 0.5) * 0.2,
-                    } : null,
-                });
             }
-            return strokes;
+
+            // Sygnatura oparta o kolejne bity hasha ogranicza podobieństwo słów,
+            // które trafiły na ten sam szkielet bazowy.
+            const signature = (seed >>> 19) % 4;
+            const side = ((seed >>> 23) & 1) ? 1 : -1;
+            const signatureY = 0.35 + ((seed >>> 24) % 24) / 100;
+            if (signature === 0) {
+                strokes.push(line(
+                    [0.50 + side * 0.24, signatureY],
+                    [0.50 + side * 0.33, signatureY - 0.035],
+                    width * 0.82
+                ));
+            } else if (signature === 1) {
+                strokes.push(path([
+                    [0.42, 0.56], [0.50, 0.49], [0.58, 0.56]
+                ], width * 0.78));
+            } else if (signature === 2) {
+                strokes.push(dot([0.50 + side * 0.27, signatureY], 0.010));
+                strokes.push(dot([0.50 + side * 0.27, signatureY + 0.055], 0.010));
+            } else {
+                strokes.push(line(
+                    [0.38, 0.52], [0.62, 0.49], width * 0.78
+                ));
+            }
+
+            // Delikatna, deterministyczna transformacja zachowuje ręczny charakter.
+            const angle = (-12 + rng() * 24) * Math.PI / 180;
+            const scaleX = 0.92 + rng() * 0.12;
+            const scaleY = 0.93 + rng() * 0.10;
+            const mirror = rng() > 0.72 ? -1 : 1;
+            const jitter = () => (rng() - 0.5) * 0.016;
+            const transformPoint = ([x, y]) => {
+                const dx = (x - 0.5) * scaleX * mirror;
+                const dy = (y - 0.5) * scaleY;
+                return [
+                    0.5 + dx * Math.cos(angle) - dy * Math.sin(angle) + jitter(),
+                    0.5 + dx * Math.sin(angle) + dy * Math.cos(angle) + jitter()
+                ];
+            };
+
+            return strokes.map(stroke => {
+                if (stroke.points) {
+                    return { ...stroke, points: stroke.points.map(transformPoint) };
+                }
+                if (stroke.center) {
+                    return { ...stroke, center: transformPoint(stroke.center) };
+                }
+                return stroke;
+            });
         }
 
         // =====================================================
         // ==================== CANVAS RENDERER ====================
         // =====================================================
 
+        /** Papierowe, lekko niejednolite tło z fotografii referencyjnej. */
+        function paintPaper(ctx, w, h) {
+            ctx.clearRect(0, 0, w, h);
+            const gradient = ctx.createLinearGradient(0, 0, w, h);
+            gradient.addColorStop(0, '#f3efe7');
+            gradient.addColorStop(0.52, '#ebe8df');
+            gradient.addColorStop(1, '#f2ede4');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, w, h);
+
+            // Stały wzór mikropunktów: tło nie migocze podczas animacji.
+            const grainCount = Math.min(220, Math.max(8, Math.round((w * h) / 1200)));
+            for (let i = 0; i < grainCount; i++) {
+                const x = ((i * 73.371 + 19.7) % 1) * w;
+                const y = ((i * 41.913 + 7.3) % 1) * h;
+                const alpha = 0.010 + (i % 4) * 0.003;
+                ctx.fillStyle = `rgba(57, 69, 58, ${alpha})`;
+                ctx.fillRect(x, y, Math.max(1, w / 520), Math.max(1, h / 520));
+            }
+        }
+
+        function drawPartialPolyline(ctx, points, progress, w, h) {
+            if (!points || points.length < 2 || progress <= 0) return;
+            const pixels = points.map(([x, y]) => [x * w, y * h]);
+            const lengths = [];
+            let totalLength = 0;
+
+            for (let i = 1; i < pixels.length; i++) {
+                const dx = pixels[i][0] - pixels[i - 1][0];
+                const dy = pixels[i][1] - pixels[i - 1][1];
+                const length = Math.hypot(dx, dy);
+                lengths.push(length);
+                totalLength += length;
+            }
+
+            let remaining = totalLength * Math.min(progress, 1);
+            ctx.beginPath();
+            ctx.moveTo(pixels[0][0], pixels[0][1]);
+
+            for (let i = 1; i < pixels.length && remaining > 0; i++) {
+                const length = lengths[i - 1];
+                if (remaining >= length) {
+                    ctx.lineTo(pixels[i][0], pixels[i][1]);
+                    remaining -= length;
+                } else {
+                    const t = length === 0 ? 0 : remaining / length;
+                    ctx.lineTo(
+                        lerp(pixels[i - 1][0], pixels[i][0], t),
+                        lerp(pixels[i - 1][1], pixels[i][1], t)
+                    );
+                    remaining = 0;
+                }
+            }
+            ctx.stroke();
+        }
+
         /**
          * Rysuje pojedynczą kreskę na kontekście canvas.
          * Kreski są w znormalizowanych współrzędnych [0,1].
          */
         function drawStroke(ctx, stroke, w, h, progress = 1) {
+            const canvasScale = Math.min(w, h) / 220;
+
+            // Nowy format V2. Pojedyncza komenda jest jednym logicznym pociągnięciem.
+            if (stroke.kind) {
+                ctx.strokeStyle = '#18352e';
+                ctx.fillStyle = '#18352e';
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+                ctx.lineWidth = (stroke.width || 2.4) * canvasScale;
+
+                if (stroke.kind === 'line' || stroke.kind === 'polyline') {
+                    drawPartialPolyline(ctx, stroke.points, progress, w, h);
+                    return;
+                }
+
+                if (stroke.kind === 'circle') {
+                    const [cx, cy] = stroke.center;
+                    const radius = stroke.radius * Math.min(w, h);
+                    // Oczyść wnętrze pierścienia, aby linia dochodziła do jego brzegu,
+                    // a nie zamieniała go optycznie w pełną kropkę.
+                    if (progress > 0) {
+                        ctx.save();
+                        ctx.fillStyle = '#eeeae1';
+                        ctx.beginPath();
+                        ctx.arc(cx * w, cy * h, radius * 0.72, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.restore();
+                    }
+                    ctx.beginPath();
+                    ctx.arc(
+                        cx * w,
+                        cy * h,
+                        radius,
+                        -Math.PI / 2,
+                        -Math.PI / 2 + (Math.PI * 2 - 0.001) * Math.min(progress, 1)
+                    );
+                    ctx.stroke();
+                    return;
+                }
+
+                if (stroke.kind === 'dot') {
+                    const [cx, cy] = stroke.center;
+                    const radius = stroke.radius * Math.min(w, h) * Math.sqrt(Math.max(0, progress));
+                    ctx.beginPath();
+                    ctx.arc(cx * w, cy * h, radius, 0, Math.PI * 2);
+                    ctx.fill();
+                    return;
+                }
+            }
+
+            // Obsługa starego formatu z wcześniejszych eksportów bazy.
             const sx = stroke.start.x * w;
             const sy = stroke.start.y * h;
             const ex = stroke.end.x * w;
             const ey = stroke.end.y * h;
             const lineWidth = stroke.width;
 
-            ctx.strokeStyle = '#1a1a1a';
-            ctx.fillStyle = '#1a1a1a';
+            ctx.strokeStyle = '#18352e';
+            ctx.fillStyle = '#18352e';
             ctx.lineCap = 'round';
             ctx.lineJoin = 'round';
 
@@ -776,15 +1001,16 @@
          * @param {number} duration - czas trwania animacji (ms)
          * @param {Function} onComplete - callback po zakończeniu
          */
-        function renderGlyph(canvas, strokes, animate = false, duration = 1200, onComplete = null) {
+        const renderTokens = new WeakMap();
+
+        function renderGlyph(canvas, strokes, animate = false, duration = 900, onComplete = null) {
             const ctx = canvas.getContext('2d');
             const w = canvas.width;
             const h = canvas.height;
+            const renderToken = (renderTokens.get(canvas) || 0) + 1;
+            renderTokens.set(canvas, renderToken);
 
-            ctx.clearRect(0, 0, w, h);
-            // Tło
-            ctx.fillStyle = '#f5f0e6';
-            ctx.fillRect(0, 0, w, h);
+            paintPaper(ctx, w, h);
 
             if (!animate || strokes.length === 0) {
                 // Rysowanie natychmiastowe
@@ -799,6 +1025,8 @@
             let startTime = null;
 
             function animateFrame(timestamp) {
+                // Zatrzymaj poprzednią animację, jeżeli użytkownik wygenerował nowy znak.
+                if (renderTokens.get(canvas) !== renderToken) return;
                 if (startTime === null) startTime = timestamp;
                 const elapsed = timestamp - startTime;
                 const totalProgress = Math.min(elapsed / duration, 1);
@@ -809,9 +1037,7 @@
                 const strokeProgress = strokeIndexFloat - activeStroke;
 
                 // Wyczyść i narysuj tło
-                ctx.clearRect(0, 0, w, h);
-                ctx.fillStyle = '#f5f0e6';
-                ctx.fillRect(0, 0, w, h);
+                paintPaper(ctx, w, h);
 
                 // Narysuj ukończone kreski
                 for (let i = 0; i < activeStroke && i < strokes.length; i++) {
@@ -827,9 +1053,7 @@
                     requestAnimationFrame(animateFrame);
                 } else {
                     // Końcowe czyszczenie — narysuj wszystkie kreski w pełni
-                    ctx.clearRect(0, 0, w, h);
-                    ctx.fillStyle = '#f5f0e6';
-                    ctx.fillRect(0, 0, w, h);
+                    paintPaper(ctx, w, h);
                     strokes.forEach(s => drawStroke(ctx, s, w, h, 1));
                     if (onComplete) onComplete();
                 }
@@ -877,6 +1101,7 @@
             const entry = {
                 word: word.trim(),
                 glyphData,
+                glyphVersion: GLYPH_VERSION,
                 timestamp: new Date().toISOString(),
             };
             db.words.push(entry);
@@ -905,6 +1130,7 @@
         const wordInput = document.getElementById('wordInput');
         const generateBtn = document.getElementById('generateBtn');
         const saveBtn = document.getElementById('saveBtn');
+        const downloadBtn = document.getElementById('downloadBtn');
         const clearBtn = document.getElementById('clearBtn');
         const mainCanvas = document.getElementById('mainCanvas');
         const canvasCaption = document.getElementById('canvasCaption');
@@ -925,6 +1151,24 @@
         let currentGlyphStrokes = null;
         let currentGlyphWord = null;
         let recognitionCurrentWord = null;
+
+        function upgradeDatabaseGlyphs() {
+            let changed = false;
+            db.words.forEach(entry => {
+                if (entry.glyphVersion !== GLYPH_VERSION || !Array.isArray(entry.glyphData)) {
+                    entry.glyphData = generateGlyphStrokes(entry.word);
+                    entry.glyphVersion = GLYPH_VERSION;
+                    changed = true;
+                }
+            });
+            if (changed) saveDatabase(db);
+        }
+
+        function getEntryGlyph(entry) {
+            return entry.glyphData && entry.glyphVersion === GLYPH_VERSION
+                ? entry.glyphData
+                : generateGlyphStrokes(entry.word);
+        }
 
         // =====================================================
         // ==================== UI — ACTIONS ====================
@@ -980,9 +1224,7 @@
                 miniCanvas.width = 60;
                 miniCanvas.height = 60;
                 // Renderuj znak
-                const strokes = entry.glyphData && entry.glyphData.length > 0 ?
-                    entry.glyphData :
-                    generateGlyphStrokes(entry.word);
+                const strokes = getEntryGlyph(entry);
                 renderGlyph(miniCanvas, strokes, false, 0);
                 card.appendChild(miniCanvas);
 
@@ -1009,13 +1251,12 @@
                 card.addEventListener('click', () => {
                     // Pokaż znak na głównym canvasie z animacją
                     currentGlyphWord = entry.word;
-                    currentGlyphStrokes = entry.glyphData && entry.glyphData.length > 0 ?
-                        entry.glyphData :
-                        generateGlyphStrokes(entry.word);
+                    currentGlyphStrokes = getEntryGlyph(entry);
                     renderGlyph(mainCanvas, currentGlyphStrokes, true, 1200, () => {
                         showCanvasCaption(entry.word, true);
                         setStatus(`To jest znak słowa "${entry.word}"`, 'success');
                         saveBtn.disabled = true;
+                        downloadBtn.disabled = false;
                         setTimeout(clearStatus, 2000);
                     });
                     wordInput.value = entry.word;
@@ -1037,13 +1278,12 @@
             if (existing) {
                 // Słowo już istnieje — pokaż jego znak
                 currentGlyphWord = existing.word;
-                currentGlyphStrokes = existing.glyphData && existing.glyphData.length > 0 ?
-                    existing.glyphData :
-                    generateGlyphStrokes(existing.word);
+                currentGlyphStrokes = getEntryGlyph(existing);
                 renderGlyph(mainCanvas, currentGlyphStrokes, true, 1200, () => {
                     showCanvasCaption(existing.word, true);
                     setStatus(`Słowo "${existing.word}" już istnieje w bazie. Pokazuję jego znak.`, 'info');
                     saveBtn.disabled = true;
+                    downloadBtn.disabled = false;
                     setTimeout(clearStatus, 2500);
                 });
             } else {
@@ -1054,6 +1294,7 @@
                     showCanvasCaption(word, false);
                     setStatus(`Wygenerowano nowy znak dla "${word}". Zapisz go do bazy!`, 'success');
                     saveBtn.disabled = false;
+                    downloadBtn.disabled = false;
                     setTimeout(() => {
                         if (currentGlyphWord === word) setStatus('', 'empty');
                     }, 3000);
@@ -1082,16 +1323,49 @@
 
         function clearGenerator() {
             const ctx = mainCanvas.getContext('2d');
-            ctx.clearRect(0, 0, mainCanvas.width, mainCanvas.height);
-            ctx.fillStyle = '#f5f0e6';
-            ctx.fillRect(0, 0, mainCanvas.width, mainCanvas.height);
+            renderTokens.set(mainCanvas, (renderTokens.get(mainCanvas) || 0) + 1);
+            paintPaper(ctx, mainCanvas.width, mainCanvas.height);
             wordInput.value = '';
             currentGlyphStrokes = null;
             currentGlyphWord = null;
             saveBtn.disabled = true;
+            downloadBtn.disabled = true;
             clearCanvasCaption();
             clearStatus();
             wordInput.focus();
+        }
+
+        function downloadCurrentGlyph() {
+            if (!currentGlyphWord || !currentGlyphStrokes) {
+                setStatus('Najpierw wygeneruj znak.', 'warning');
+                return;
+            }
+
+            // Utrwal pełny znak bez stanu pośredniego animacji.
+            renderGlyph(mainCanvas, currentGlyphStrokes, false, 0);
+            const safeName = currentGlyphWord
+                .toLocaleLowerCase('pl-PL')
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .replace(/[^a-z0-9_-]+/g, '-')
+                .replace(/^-+|-+$/g, '') || 'znak';
+
+            mainCanvas.toBlob(blob => {
+                if (!blob) {
+                    setStatus('Nie udało się przygotować pliku PNG.', 'warning');
+                    return;
+                }
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `znak-${safeName}.png`;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                setTimeout(() => URL.revokeObjectURL(url), 1000);
+                setStatus('Zapisano znak jako PNG.', 'success');
+                setTimeout(clearStatus, 2000);
+            }, 'image/png');
         }
 
         function exportDatabase() {
@@ -1126,7 +1400,10 @@
                             if (entry.word && !findWord(db, entry.word)) {
                                 db.words.push({
                                     word: entry.word,
-                                    glyphData: entry.glyphData || generateGlyphStrokes(entry.word),
+                                    glyphData: entry.glyphVersion === GLYPH_VERSION && entry.glyphData
+                                        ? entry.glyphData
+                                        : generateGlyphStrokes(entry.word),
+                                    glyphVersion: GLYPH_VERSION,
                                     timestamp: entry.timestamp || new Date().toISOString(),
                                 });
                                 addedCount++;
@@ -1167,9 +1444,7 @@
             const entry = randomWordFromDB();
             if (!entry) return;
             recognitionCurrentWord = entry.word;
-            const strokes = entry.glyphData && entry.glyphData.length > 0 ?
-                entry.glyphData :
-                generateGlyphStrokes(entry.word);
+            const strokes = getEntryGlyph(entry);
             renderGlyph(recognitionCanvas, strokes, false, 0);
             recognitionInput.value = '';
             recognitionFeedback.textContent = '';
@@ -1210,6 +1485,7 @@
 
         generateBtn.addEventListener('click', generateNewGlyph);
         saveBtn.addEventListener('click', saveCurrentGlyph);
+        downloadBtn.addEventListener('click', downloadCurrentGlyph);
         clearBtn.addEventListener('click', clearGenerator);
 
         wordInput.addEventListener('keydown', (e) => {
@@ -1247,9 +1523,7 @@
                 clearGenerator();
                 recognitionCurrentWord = null;
                 const ctx = recognitionCanvas.getContext('2d');
-                ctx.clearRect(0, 0, recognitionCanvas.width, recognitionCanvas.height);
-                ctx.fillStyle = '#f5f0e6';
-                ctx.fillRect(0, 0, recognitionCanvas.width, recognitionCanvas.height);
+                paintPaper(ctx, recognitionCanvas.width, recognitionCanvas.height);
                 recognitionFeedback.textContent = '';
                 setStatus('Baza została zresetowana.', 'info');
                 setTimeout(clearStatus, 2000);
@@ -1261,6 +1535,9 @@
         // =====================================================
 
         function init() {
+            // Starsze zapisane znaki automatycznie otrzymują nowy styl V2.
+            upgradeDatabaseGlyphs();
+
             // Renderuj galerię z bazy
             renderGallery();
             updateWordCount();
@@ -1270,8 +1547,7 @@
 
             // Ustaw początkowe tło canvasa rozpoznawania
             const ctx = recognitionCanvas.getContext('2d');
-            ctx.fillStyle = '#f5f0e6';
-            ctx.fillRect(0, 0, recognitionCanvas.width, recognitionCanvas.height);
+            paintPaper(ctx, recognitionCanvas.width, recognitionCanvas.height);
 
             // Fokus na pole wejściowe
             wordInput.focus();
