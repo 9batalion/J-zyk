@@ -444,6 +444,9 @@
             justify-content: center;
             margin-top: 16px;
         }
+        .export-import .btn-zip {
+            flex-basis: 100%;
+        }
 
         /* ============ FOOTER ============ */
         footer {
@@ -545,6 +548,7 @@
                 <div class="export-import">
                     <button class="btn btn-secondary" id="exportBtn">📤 Eksportuj</button>
                     <button class="btn btn-secondary" id="importBtn">📥 Importuj</button>
+                    <button class="btn btn-secondary btn-zip" id="downloadAllBtn" disabled>🗜️ Pobierz wszystkie PNG (ZIP)</button>
                     <input type="file" id="importFile" accept=".json" style="display:none;" />
                 </div>
             </div>
@@ -623,6 +627,7 @@
          * Kreski są definiowane w znormalizowanych współrzędnych [0,1].
          */
         const GLYPH_VERSION = 3;
+        const GENERATOR_VERSION = 4;
 
         /**
          * Generator V3: każdy znak ma zwarty szkielet, a ozdobniki pojawiają
@@ -651,6 +656,18 @@
             const dot = (center, radius = 0.009) => ({
                 kind: 'dot', center, radius
             });
+            const curvePoints = (start, control, end, segments = 6) => {
+                const points = [];
+                for (let i = 0; i <= segments; i++) {
+                    const t = i / segments;
+                    const mt = 1 - t;
+                    points.push([
+                        mt * mt * start[0] + 2 * mt * t * control[0] + t * t * end[0],
+                        mt * mt * start[1] + 2 * mt * t * control[1] + t * t * end[1]
+                    ]);
+                }
+                return points;
+            };
 
             // Każdy szkielet zawiera połączone ścieżki, punkty dla pierścieni,
             // miejsce na kreski równoległe i możliwe krótkie odgałęzienia.
@@ -670,21 +687,38 @@
                 { paths: [[[0.32,0.34],[0.48,0.49],[0.34,0.67]], [[0.48,0.49],[0.68,0.34]]], anchors: [[0.32,0.34],[0.34,0.67],[0.68,0.34]], bars: [0.61,0.58,'horizontal'], branches: [[0.48,0.49,0.17,0.03]] },
                 { paths: [[[0.37,0.29],[0.37,0.57],[0.45,0.68],[0.58,0.66],[0.65,0.55]]], anchors: [[0.37,0.29],[0.45,0.68],[0.65,0.55]], bars: [0.62,0.39,'vertical'], branches: [[0.37,0.49,0.12,-0.05]] },
                 { paths: [[[0.35,0.66],[0.47,0.50],[0.35,0.34]], [[0.47,0.50],[0.67,0.51]]], anchors: [[0.35,0.66],[0.35,0.34],[0.67,0.51]], bars: [0.61,0.39,'horizontal'], branches: [[0.47,0.50,0.06,-0.13]] },
-                { paths: [[[0.35,0.29],[0.35,0.61],[0.49,0.69],[0.65,0.61],[0.65,0.35]]], anchors: [[0.35,0.29],[0.49,0.69],[0.65,0.35]], bars: [0.70,0.49,'vertical'], branches: [[0.49,0.69,0.11,0.06]] }
+                { paths: [[[0.35,0.29],[0.35,0.61],[0.49,0.69],[0.65,0.61],[0.65,0.35]]], anchors: [[0.35,0.29],[0.49,0.69],[0.65,0.35]], bars: [0.70,0.49,'vertical'], branches: [[0.49,0.69,0.11,0.06]] },
+                { paths: [curvePoints([0.36,0.29],[0.32,0.67],[0.55,0.67]), [[0.55,0.67],[0.67,0.55]]], anchors: [[0.36,0.29],[0.55,0.67],[0.67,0.55]], bars: [0.62,0.38,'diagUp'], branches: [[0.43,0.62,-0.10,-0.05]] },
+                { paths: [[[0.50,0.28],[0.68,0.47],[0.50,0.69],[0.33,0.50]], [[0.33,0.50],[0.42,0.40]]], anchors: [[0.50,0.28],[0.68,0.47],[0.50,0.69],[0.33,0.50]], bars: [0.67,0.63,'diagDown'], branches: [[0.50,0.69,0.10,0.02]] },
+                { paths: [[[0.33,0.69],[0.46,0.54],[0.58,0.37],[0.68,0.28]], [[0.46,0.54],[0.32,0.45]], [[0.58,0.37],[0.70,0.47]]], anchors: [[0.33,0.69],[0.68,0.28],[0.32,0.45],[0.70,0.47]], bars: [0.39,0.34,'diagUp'], branches: [[0.46,0.54,0.03,0.13]] },
+                { paths: [[[0.35,0.29],[0.35,0.65],[0.64,0.65]], [[0.48,0.65],[0.48,0.45],[0.67,0.31]]], anchors: [[0.35,0.29],[0.35,0.65],[0.64,0.65],[0.67,0.31]], bars: [0.62,0.46,'diagDown'], branches: [[0.48,0.53,0.12,0.01]] },
+                { paths: [curvePoints([0.38,0.28],[0.34,0.66],[0.52,0.69]), curvePoints([0.52,0.69],[0.66,0.69],[0.66,0.53])], anchors: [[0.38,0.28],[0.52,0.69],[0.66,0.53]], bars: [0.62,0.37,'vertical'], branches: [[0.42,0.58,-0.10,-0.01]] },
+                { paths: [curvePoints([0.35,0.33],[0.67,0.28],[0.52,0.50]), curvePoints([0.52,0.50],[0.36,0.72],[0.68,0.66])], anchors: [[0.35,0.33],[0.52,0.50],[0.68,0.66]], bars: [0.33,0.57,'diagUp'], branches: [[0.52,0.50,0.13,-0.02]] },
+                { paths: [[[0.37,0.28],[0.37,0.68]], [[0.37,0.43],[0.61,0.34]], [[0.37,0.56],[0.62,0.54]]], anchors: [[0.37,0.28],[0.37,0.68],[0.61,0.34],[0.62,0.54]], bars: [0.65,0.66,'diagDown'], branches: [[0.50,0.39,0.04,0.13]] },
+                { paths: [[[0.31,0.50],[0.49,0.32],[0.68,0.50],[0.49,0.68]], [[0.49,0.68],[0.39,0.58]]], anchors: [[0.31,0.50],[0.49,0.32],[0.68,0.50],[0.49,0.68]], bars: [0.68,0.35,'diagUp'], branches: [[0.68,0.50,-0.10,0.08]] },
+                { paths: [[[0.34,0.30],[0.50,0.50],[0.35,0.68]], [[0.50,0.50],[0.66,0.31],[0.67,0.66]]], anchors: [[0.34,0.30],[0.35,0.68],[0.66,0.31],[0.67,0.66]], bars: [0.29,0.49,'vertical'], branches: [[0.50,0.50,0.13,0.01]] },
+                { paths: [[[0.34,0.29],[0.66,0.29]], [[0.50,0.29],[0.50,0.67]], [[0.50,0.48],[0.66,0.58]]], anchors: [[0.34,0.29],[0.66,0.29],[0.50,0.67]], bars: [0.35,0.56,'diagDown'], branches: [[0.50,0.58,-0.12,0.06]] },
+                { paths: [[[0.34,0.68],[0.50,0.29],[0.66,0.68]], [[0.40,0.55],[0.60,0.55]]], anchors: [[0.34,0.68],[0.50,0.29],[0.66,0.68]], bars: [0.70,0.44,'vertical'], branches: [[0.50,0.29,0.10,0.07]] },
+                { paths: [[[0.34,0.31],[0.48,0.49],[0.34,0.68],[0.53,0.68],[0.68,0.53]]], anchors: [[0.34,0.31],[0.48,0.49],[0.34,0.68],[0.68,0.53]], bars: [0.63,0.35,'diagDown'], branches: [[0.53,0.68,0.09,0.06]] },
+                { paths: [[[0.31,0.35],[0.48,0.49],[0.31,0.64]], [[0.48,0.49],[0.67,0.35],[0.67,0.64]]], anchors: [[0.31,0.35],[0.31,0.64],[0.67,0.35],[0.67,0.64]], bars: [0.51,0.68,'horizontal'], branches: [[0.48,0.49,0.02,-0.14]] },
+                { paths: [curvePoints([0.37,0.30],[0.65,0.29],[0.55,0.48]), curvePoints([0.55,0.48],[0.35,0.68],[0.64,0.68])], anchors: [[0.37,0.30],[0.55,0.48],[0.64,0.68]], bars: [0.33,0.55,'vertical'], branches: [[0.55,0.48,0.13,0.02]] },
+                { paths: [[[0.34,0.68],[0.34,0.31]], [[0.34,0.43],[0.55,0.43]], [[0.34,0.57],[0.65,0.57]]], anchors: [[0.34,0.68],[0.34,0.31],[0.55,0.43],[0.65,0.57]], bars: [0.61,0.33,'diagUp'], branches: [[0.50,0.57,0.05,0.12]] },
+                { paths: [[[0.33,0.30],[0.47,0.48],[0.33,0.67]], [[0.47,0.48],[0.65,0.48]], [[0.65,0.48],[0.69,0.34]]], anchors: [[0.33,0.30],[0.33,0.67],[0.69,0.34]], bars: [0.64,0.62,'diagDown'], branches: [[0.47,0.48,0.04,0.14]] }
             ];
 
             const template = templates[seed % templates.length];
             template.paths.forEach(points => strokes.push(path(points)));
 
-            // Pierścień występuje często, lecz nie obowiązkowo.
+            // Pierścienie są charakterystyczne, ale na wzorze nie występują
+            // przy każdym znaku.
             const ringRoll = ((seed >>> 8) & 255) / 255;
             const ringIndex = (seed >>> 16) % template.anchors.length;
-            if (ringRoll < 0.82) {
+            if (ringRoll < 0.60) {
                 strokes.push(ring(template.anchors[ringIndex], 0.023 + rng() * 0.008));
             }
 
             // Drugie zakończenie z pierścieniem jest rzadkie.
-            if (((seed >>> 11) & 31) < 6) {
+            if (((seed >>> 11) & 31) < 3) {
                 const secondIndex = (ringIndex + 1 + ((seed >>> 21) % (template.anchors.length - 1))) % template.anchors.length;
                 strokes.push(ring(template.anchors[secondIndex], 0.018 + rng() * 0.005));
             }
@@ -701,35 +735,53 @@
             // Równoległe kreski występują tylko w części znaków i pozostają
             // blisko głównej figury.
             const barsRoll = ((seed >>> 17) & 127) / 127;
-            if (barsRoll < 0.46) {
+            if (barsRoll < 0.38) {
                 const barCount = 2 + ((seed >>> 24) % 3);
                 const [barX, barY, baseOrientation] = template.bars;
-                const orientation = ((seed >>> 27) & 1)
-                    ? (baseOrientation === 'vertical' ? 'horizontal' : 'vertical')
-                    : baseOrientation;
+                const orientationAngles = {
+                    horizontal: 0,
+                    vertical: Math.PI / 2,
+                    diagUp: -Math.PI / 4,
+                    diagDown: Math.PI / 4
+                };
+                const angleVariant = (((seed >>> 27) % 3) - 1) * Math.PI / 12;
+                const barAngle = (orientationAngles[baseOrientation] ?? 0) + angleVariant;
+                const ux = Math.cos(barAngle);
+                const uy = Math.sin(barAngle);
+                const nx = -uy;
+                const ny = ux;
                 const barLength = 0.070 + rng() * 0.025;
                 const barGap = 0.019;
                 for (let i = 0; i < barCount; i++) {
                     const offset = (i - (barCount - 1) / 2) * barGap;
-                    if (orientation === 'vertical') {
-                        strokes.push(line(
-                            [barX + offset, barY - barLength / 2],
-                            [barX + offset, barY + barLength / 2],
-                            width * 0.82
-                        ));
-                    } else {
-                        strokes.push(line(
-                            [barX - barLength / 2, barY + offset],
-                            [barX + barLength / 2, barY + offset],
-                            width * 0.82
-                        ));
-                    }
+                    const cx = barX + nx * offset;
+                    const cy = barY + ny * offset;
+                    strokes.push(line(
+                        [cx - ux * barLength / 2, cy - uy * barLength / 2],
+                        [cx + ux * barLength / 2, cy + uy * barLength / 2],
+                        width * 0.82
+                    ));
                 }
-            } else if (barsRoll > 0.91) {
-                // Sporadyczna para punktów odpowiada drobnym znakom z referencji.
-                const [x, y] = template.bars;
-                strokes.push(dot([x, y - 0.018]));
-                strokes.push(dot([x, y + 0.030]));
+            } else if (barsRoll > 0.86) {
+                // Łańcuch dwóch–czterech punktów odpowiada kropkowanym
+                // zakończeniom widocznym na materiale referencyjnym.
+                const [x, y, orientation] = template.bars;
+                const dotAngles = {
+                    horizontal: 0,
+                    vertical: Math.PI / 2,
+                    diagUp: -Math.PI / 4,
+                    diagDown: Math.PI / 4
+                };
+                const dotAngle = dotAngles[orientation] ?? Math.PI / 2;
+                const dotCount = 2 + ((seed >>> 25) % 3);
+                const dotGap = 0.025;
+                for (let i = 0; i < dotCount; i++) {
+                    const offset = (i - (dotCount - 1) / 2) * dotGap;
+                    strokes.push(dot([
+                        x + Math.cos(dotAngle) * offset,
+                        y + Math.sin(dotAngle) * offset
+                    ]));
+                }
             }
 
             // Transformacja całego glifu: mała rotacja, odbicie i minimalna
@@ -852,7 +904,7 @@
                 ctx.fillStyle = '#18352e';
                 ctx.lineCap = 'round';
                 ctx.lineJoin = 'round';
-                ctx.lineWidth = (stroke.width || 2.4) * canvasScale;
+                ctx.lineWidth = Math.max(1, (stroke.width || 2.4) * canvasScale);
 
                 if (stroke.kind === 'line' || stroke.kind === 'polyline') {
                     drawPartialPolyline(ctx, stroke.points, progress, w, h);
@@ -1099,6 +1151,7 @@
                 existing.word = word.trim();
                 existing.glyphData = glyphData;
                 existing.glyphVersion = GLYPH_VERSION;
+                existing.generatorVersion = GENERATOR_VERSION;
                 existing.variantSeed = variantSeed;
                 existing.timestamp = new Date().toISOString();
                 saveDatabase(db);
@@ -1108,6 +1161,7 @@
                 word: word.trim(),
                 glyphData,
                 glyphVersion: GLYPH_VERSION,
+                generatorVersion: GENERATOR_VERSION,
                 variantSeed,
                 timestamp: new Date().toISOString(),
             };
@@ -1146,6 +1200,7 @@
         const wordCount = document.getElementById('wordCount');
         const exportBtn = document.getElementById('exportBtn');
         const importBtn = document.getElementById('importBtn');
+        const downloadAllBtn = document.getElementById('downloadAllBtn');
         const importFile = document.getElementById('importFile');
         const recognitionCanvas = document.getElementById('recognitionCanvas');
         const recognitionInput = document.getElementById('recognitionInput');
@@ -1210,6 +1265,7 @@
                 if (entry.glyphVersion !== GLYPH_VERSION || !Array.isArray(entry.glyphData)) {
                     entry.glyphData = generateGlyphStrokes(entry.word, entry.variantSeed);
                     entry.glyphVersion = GLYPH_VERSION;
+                    entry.generatorVersion = GENERATOR_VERSION;
                     changed = true;
                 }
             });
@@ -1228,6 +1284,7 @@
 
         function updateWordCount() {
             wordCount.textContent = `${db.words.length} słów`;
+            downloadAllBtn.disabled = db.words.length === 0;
         }
 
         function setStatus(msg, type = 'info') {
@@ -1414,6 +1471,16 @@
             wordInput.focus();
         }
 
+        function sanitizeFileName(value) {
+            return value
+                .toLocaleLowerCase('pl-PL')
+                .replace(/ł/g, 'l')
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .replace(/[^a-z0-9_-]+/g, '-')
+                .replace(/^-+|-+$/g, '') || 'znak';
+        }
+
         function downloadCurrentGlyph() {
             if (!currentGlyphWord || !currentGlyphStrokes) {
                 setStatus('Najpierw wygeneruj znak.', 'warning');
@@ -1422,12 +1489,7 @@
 
             // Utrwal pełny znak bez stanu pośredniego animacji.
             renderGlyph(mainCanvas, currentGlyphStrokes, false, 0);
-            const safeName = currentGlyphWord
-                .toLocaleLowerCase('pl-PL')
-                .normalize('NFD')
-                .replace(/[\u0300-\u036f]/g, '')
-                .replace(/[^a-z0-9_-]+/g, '-')
-                .replace(/^-+|-+$/g, '') || 'znak';
+            const safeName = sanitizeFileName(currentGlyphWord);
 
             mainCanvas.toBlob(blob => {
                 if (!blob) {
@@ -1445,6 +1507,179 @@
                 setStatus('Zapisano znak jako PNG.', 'success');
                 setTimeout(clearStatus, 2000);
             }, 'image/png');
+        }
+
+        let crc32Table = null;
+
+        function getCrc32Table() {
+            if (crc32Table) return crc32Table;
+            crc32Table = new Uint32Array(256);
+            for (let n = 0; n < 256; n++) {
+                let c = n;
+                for (let k = 0; k < 8; k++) {
+                    c = (c & 1) ? (0xedb88320 ^ (c >>> 1)) : (c >>> 1);
+                }
+                crc32Table[n] = c >>> 0;
+            }
+            return crc32Table;
+        }
+
+        function calculateCrc32(bytes) {
+            const table = getCrc32Table();
+            let crc = 0xffffffff;
+            for (let i = 0; i < bytes.length; i++) {
+                crc = table[(crc ^ bytes[i]) & 0xff] ^ (crc >>> 8);
+            }
+            return (crc ^ 0xffffffff) >>> 0;
+        }
+
+        function getDosDateTime(date = new Date()) {
+            const year = Math.max(1980, date.getFullYear());
+            return {
+                time: ((date.getHours() & 0x1f) << 11) |
+                    ((date.getMinutes() & 0x3f) << 5) |
+                    ((Math.floor(date.getSeconds() / 2)) & 0x1f),
+                date: (((year - 1980) & 0x7f) << 9) |
+                    (((date.getMonth() + 1) & 0x0f) << 5) |
+                    (date.getDate() & 0x1f)
+            };
+        }
+
+        /** Tworzy prosty ZIP bez kompresji; pliki PNG są już skompresowane. */
+        function createZipBlob(files) {
+            const encoder = new TextEncoder();
+            const localParts = [];
+            const centralParts = [];
+            const { time, date } = getDosDateTime();
+            let localOffset = 0;
+            let centralSize = 0;
+
+            files.forEach(file => {
+                const nameBytes = encoder.encode(file.name);
+                const data = file.data instanceof Uint8Array
+                    ? file.data
+                    : new Uint8Array(file.data);
+                const crc = calculateCrc32(data);
+
+                const local = new Uint8Array(30 + nameBytes.length + data.length);
+                const localView = new DataView(local.buffer);
+                localView.setUint32(0, 0x04034b50, true);
+                localView.setUint16(4, 20, true);
+                localView.setUint16(6, 0x0800, true);
+                localView.setUint16(8, 0, true);
+                localView.setUint16(10, time, true);
+                localView.setUint16(12, date, true);
+                localView.setUint32(14, crc, true);
+                localView.setUint32(18, data.length, true);
+                localView.setUint32(22, data.length, true);
+                localView.setUint16(26, nameBytes.length, true);
+                localView.setUint16(28, 0, true);
+                local.set(nameBytes, 30);
+                local.set(data, 30 + nameBytes.length);
+                localParts.push(local);
+
+                const central = new Uint8Array(46 + nameBytes.length);
+                const centralView = new DataView(central.buffer);
+                centralView.setUint32(0, 0x02014b50, true);
+                centralView.setUint16(4, 20, true);
+                centralView.setUint16(6, 20, true);
+                centralView.setUint16(8, 0x0800, true);
+                centralView.setUint16(10, 0, true);
+                centralView.setUint16(12, time, true);
+                centralView.setUint16(14, date, true);
+                centralView.setUint32(16, crc, true);
+                centralView.setUint32(20, data.length, true);
+                centralView.setUint32(24, data.length, true);
+                centralView.setUint16(28, nameBytes.length, true);
+                centralView.setUint16(30, 0, true);
+                centralView.setUint16(32, 0, true);
+                centralView.setUint16(34, 0, true);
+                centralView.setUint16(36, 0, true);
+                centralView.setUint32(38, 0, true);
+                centralView.setUint32(42, localOffset, true);
+                central.set(nameBytes, 46);
+                centralParts.push(central);
+                centralSize += central.length;
+                localOffset += local.length;
+            });
+
+            const end = new Uint8Array(22);
+            const endView = new DataView(end.buffer);
+            endView.setUint32(0, 0x06054b50, true);
+            endView.setUint16(4, 0, true);
+            endView.setUint16(6, 0, true);
+            endView.setUint16(8, files.length, true);
+            endView.setUint16(10, files.length, true);
+            endView.setUint32(12, centralSize, true);
+            endView.setUint32(16, localOffset, true);
+            endView.setUint16(20, 0, true);
+
+            return new Blob([...localParts, ...centralParts, end], { type: 'application/zip' });
+        }
+
+        function canvasToPngBytes(canvas) {
+            return new Promise((resolve, reject) => {
+                canvas.toBlob(async blob => {
+                    if (!blob) {
+                        reject(new Error('Nie udało się utworzyć PNG.'));
+                        return;
+                    }
+                    resolve(new Uint8Array(await blob.arrayBuffer()));
+                }, 'image/png');
+            });
+        }
+
+        async function downloadAllGlyphsZip() {
+            if (db.words.length === 0) {
+                setStatus('Baza jest pusta — nie ma znaków do pobrania.', 'warning');
+                return;
+            }
+
+            const originalLabel = downloadAllBtn.textContent;
+            downloadAllBtn.disabled = true;
+            const files = [];
+            const manifest = [];
+
+            try {
+                for (let i = 0; i < db.words.length; i++) {
+                    const entry = db.words[i];
+                    downloadAllBtn.textContent = `⏳ Przygotowywanie ${i + 1}/${db.words.length}`;
+                    setStatus(`Tworzenie PNG ${i + 1} z ${db.words.length}…`, 'info');
+
+                    const canvas = document.createElement('canvas');
+                    canvas.width = 520;
+                    canvas.height = 520;
+                    renderGlyph(canvas, getEntryGlyph(entry), false, 0);
+
+                    const index = String(i + 1).padStart(3, '0');
+                    const fileName = `${index}-${sanitizeFileName(entry.word)}.png`;
+                    files.push({ name: fileName, data: await canvasToPngBytes(canvas) });
+                    manifest.push({ file: fileName, word: entry.word });
+                }
+
+                files.push({
+                    name: 'slownik.json',
+                    data: new TextEncoder().encode(JSON.stringify({ words: manifest }, null, 2))
+                });
+
+                const zip = createZipBlob(files);
+                const url = URL.createObjectURL(zip);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `znaki-${new Date().toISOString().slice(0, 10)}.zip`;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                setTimeout(() => URL.revokeObjectURL(url), 2000);
+                setStatus(`Pobrano ZIP: ${db.words.length} znaków PNG.`, 'success');
+                setTimeout(clearStatus, 3000);
+            } catch (error) {
+                console.error('Błąd tworzenia ZIP:', error);
+                setStatus('Nie udało się utworzyć archiwum ZIP.', 'warning');
+            } finally {
+                downloadAllBtn.textContent = originalLabel;
+                downloadAllBtn.disabled = db.words.length === 0;
+            }
         }
 
         function exportDatabase() {
@@ -1477,12 +1712,16 @@
                         let addedCount = 0;
                         data.words.forEach(entry => {
                             if (entry.word && !findWord(db, entry.word)) {
+                                const hasCompatibleGlyph = entry.glyphVersion === GLYPH_VERSION && entry.glyphData;
                                 db.words.push({
                                     word: entry.word,
-                                    glyphData: entry.glyphVersion === GLYPH_VERSION && entry.glyphData
+                                    glyphData: hasCompatibleGlyph
                                         ? entry.glyphData
                                         : generateGlyphStrokes(entry.word, entry.variantSeed),
                                     glyphVersion: GLYPH_VERSION,
+                                    generatorVersion: hasCompatibleGlyph
+                                        ? (entry.generatorVersion ?? 3)
+                                        : GENERATOR_VERSION,
                                     variantSeed: entry.variantSeed ?? null,
                                     timestamp: entry.timestamp || new Date().toISOString(),
                                 });
@@ -1586,6 +1825,7 @@
         });
 
         exportBtn.addEventListener('click', exportDatabase);
+        downloadAllBtn.addEventListener('click', downloadAllGlyphsZip);
         importBtn.addEventListener('click', () => importFile.click());
         importFile.addEventListener('change', (e) => {
             if (e.target.files && e.target.files[0]) {
