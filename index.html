@@ -1,0 +1,1294 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generator Języka Obrazowego — Słownik Wizualny</title>
+    <style>
+        :root {
+            --bg-dark: #12121e;
+            --bg-card: #1c1c2e;
+            --bg-canvas: #f5f0e6;
+            --ink: #1a1a1a;
+            --gold: #d4a44a;
+            --gold-bright: #e8c86a;
+            --gold-dim: #a07830;
+            --text: #e8e4d8;
+            --text-muted: #9a958a;
+            --text-dark: #2a2a3a;
+            --border: #3a3a4e;
+            --danger: #c05858;
+            --success: #58a060;
+            --shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            --radius: 14px;
+            --radius-sm: 8px;
+            --transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Georgia', 'Noto Serif', serif;
+            background: var(--bg-dark);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 24px 16px;
+            background-image: radial-gradient(ellipse at 50% 0%, #1e1e35 0%, #0d0d16 70%);
+        }
+
+        .container {
+            width: 100%;
+            max-width: 1100px;
+        }
+
+        /* ============ HEADER ============ */
+        header {
+            text-align: center;
+            margin-bottom: 36px;
+            position: relative;
+        }
+        header h1 {
+            font-size: 2.6rem;
+            font-weight: 700;
+            letter-spacing: 2px;
+            color: var(--gold-bright);
+            text-shadow: 0 0 40px rgba(212, 164, 74, 0.3);
+            margin-bottom: 8px;
+        }
+        header p {
+            font-size: 1.1rem;
+            color: var(--text-muted);
+            max-width: 600px;
+            margin: 0 auto;
+            line-height: 1.6;
+        }
+        header .ornament {
+            width: 80px;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--gold), transparent);
+            margin: 16px auto 0;
+            border-radius: 2px;
+        }
+
+        /* ============ MAIN LAYOUT ============ */
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 28px;
+            margin-bottom: 28px;
+        }
+        @media (max-width: 800px) {
+            .main-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .panel {
+            background: var(--bg-card);
+            border-radius: var(--radius);
+            padding: 24px;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border);
+        }
+        .panel h2 {
+            font-size: 1.4rem;
+            color: var(--gold);
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+        .panel h2 .icon {
+            font-size: 1.5rem;
+        }
+
+        /* ============ INPUT AREA ============ */
+        .input-row {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        .input-row input {
+            flex: 1;
+            padding: 12px 18px;
+            font-size: 1.1rem;
+            border-radius: var(--radius-sm);
+            border: 2px solid var(--border);
+            background: #252538;
+            color: var(--text);
+            font-family: inherit;
+            outline: none;
+            transition: border-color var(--transition);
+        }
+        .input-row input:focus {
+            border-color: var(--gold);
+            box-shadow: 0 0 20px rgba(212, 164, 74, 0.15);
+        }
+        .input-row input::placeholder {
+            color: var(--text-muted);
+        }
+        .btn {
+            padding: 12px 22px;
+            font-size: 1rem;
+            font-weight: 600;
+            border-radius: var(--radius-sm);
+            border: none;
+            cursor: pointer;
+            transition: all var(--transition);
+            letter-spacing: 0.5px;
+            font-family: inherit;
+            white-space: nowrap;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, var(--gold), var(--gold-dim));
+            color: #1a1a1a;
+            box-shadow: 0 4px 16px rgba(212, 164, 74, 0.3);
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 28px rgba(212, 164, 74, 0.45);
+            background: linear-gradient(135deg, var(--gold-bright), var(--gold));
+        }
+        .btn-primary:active {
+            transform: translateY(0);
+        }
+        .btn-secondary {
+            background: var(--border);
+            color: var(--text);
+            border: 1px solid #4a4a5e;
+        }
+        .btn-secondary:hover {
+            background: #4a4a5e;
+            transform: translateY(-1px);
+        }
+        .btn-danger {
+            background: transparent;
+            color: var(--danger);
+            border: 1px solid var(--danger);
+            padding: 6px 12px;
+            font-size: 0.85rem;
+        }
+        .btn-danger:hover {
+            background: rgba(192, 88, 88, 0.15);
+        }
+        .btn-success {
+            background: linear-gradient(135deg, #58a060, #3d7a44);
+            color: #fff;
+            box-shadow: 0 4px 16px rgba(88, 160, 96, 0.3);
+        }
+        .btn-success:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 28px rgba(88, 160, 96, 0.45);
+        }
+
+        /* ============ CANVAS ============ */
+        .canvas-wrapper {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 8px;
+        }
+        .canvas-frame {
+            background: var(--bg-canvas);
+            border-radius: var(--radius-sm);
+            padding: 12px;
+            box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.1), 0 4px 16px rgba(0, 0, 0, 0.3);
+            position: relative;
+            border: 1px solid #d8d0c0;
+        }
+        #mainCanvas {
+            display: block;
+            border-radius: 4px;
+            background: var(--bg-canvas);
+            width: 220px;
+            height: 220px;
+            cursor: pointer;
+        }
+        .canvas-caption {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            text-align: center;
+            min-height: 24px;
+        }
+        .canvas-caption .highlight {
+            color: var(--gold-bright);
+            font-weight: 600;
+        }
+
+        /* ============ STATUS ============ */
+        .status-message {
+            padding: 10px 16px;
+            border-radius: var(--radius-sm);
+            font-size: 0.95rem;
+            margin-top: 8px;
+            text-align: center;
+            transition: all var(--transition);
+            min-height: 42px;
+        }
+        .status-message.info {
+            background: rgba(212, 164, 74, 0.12);
+            color: var(--gold-bright);
+            border: 1px solid rgba(212, 164, 74, 0.3);
+        }
+        .status-message.success {
+            background: rgba(88, 160, 96, 0.12);
+            color: var(--success);
+            border: 1px solid rgba(88, 160, 96, 0.3);
+        }
+        .status-message.warning {
+            background: rgba(192, 88, 88, 0.12);
+            color: var(--danger);
+            border: 1px solid rgba(192, 88, 88, 0.3);
+        }
+        .status-message.empty {
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+        }
+
+        /* ============ BUTTON ROW ============ */
+        .button-row {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: center;
+            margin-top: 8px;
+        }
+
+        /* ============ GALLERY ============ */
+        .gallery {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+            gap: 12px;
+            max-height: 420px;
+            overflow-y: auto;
+            padding-right: 6px;
+        }
+        .gallery::-webkit-scrollbar {
+            width: 5px;
+        }
+        .gallery::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .gallery::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 10px;
+        }
+        .gallery-card {
+            background: #252538;
+            border-radius: var(--radius-sm);
+            padding: 10px;
+            text-align: center;
+            cursor: pointer;
+            transition: all var(--transition);
+            border: 1px solid transparent;
+            position: relative;
+            user-select: none;
+        }
+        .gallery-card:hover {
+            border-color: var(--gold);
+            transform: translateY(-3px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+        }
+        .gallery-card canvas {
+            width: 60px;
+            height: 60px;
+            border-radius: 4px;
+            background: var(--bg-canvas);
+            margin-bottom: 6px;
+        }
+        .gallery-card .word-label {
+            font-size: 0.8rem;
+            color: var(--text);
+            word-break: break-all;
+            line-height: 1.3;
+            font-weight: 600;
+        }
+        .gallery-card .delete-btn {
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            background: var(--danger);
+            color: #fff;
+            border: none;
+            cursor: pointer;
+            font-size: 12px;
+            line-height: 22px;
+            text-align: center;
+            opacity: 0;
+            transition: opacity var(--transition);
+            padding: 0;
+        }
+        .gallery-card:hover .delete-btn {
+            opacity: 1;
+        }
+        .gallery-empty {
+            text-align: center;
+            color: var(--text-muted);
+            padding: 40px 20px;
+            font-style: italic;
+            grid-column: 1 / -1;
+        }
+
+        /* ============ RECOGNITION MODE ============ */
+        .recognition-section {
+            margin-top: 28px;
+        }
+        .recognition-box {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 20px;
+            align-items: center;
+        }
+        @media (max-width: 600px) {
+            .recognition-box {
+                grid-template-columns: 1fr;
+                text-align: center;
+            }
+        }
+        .recognition-canvas-frame {
+            background: var(--bg-canvas);
+            border-radius: var(--radius-sm);
+            padding: 10px;
+            box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.1), 0 4px 16px rgba(0, 0, 0, 0.3);
+        }
+        #recognitionCanvas {
+            display: block;
+            width: 120px;
+            height: 120px;
+            background: var(--bg-canvas);
+            border-radius: 4px;
+        }
+        .recognition-input-area {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .recognition-input-area input {
+            padding: 10px 16px;
+            font-size: 1rem;
+            border-radius: var(--radius-sm);
+            border: 2px solid var(--border);
+            background: #252538;
+            color: var(--text);
+            font-family: inherit;
+            outline: none;
+            transition: border-color var(--transition);
+            width: 100%;
+        }
+        .recognition-input-area input:focus {
+            border-color: var(--gold);
+        }
+        .recognition-feedback {
+            font-size: 0.95rem;
+            min-height: 28px;
+            font-weight: 600;
+        }
+        .recognition-feedback.correct {
+            color: var(--success);
+        }
+        .recognition-feedback.incorrect {
+            color: var(--danger);
+        }
+
+        /* ============ EXPORT/IMPORT ============ */
+        .export-import {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: center;
+            margin-top: 16px;
+        }
+
+        /* ============ FOOTER ============ */
+        footer {
+            text-align: center;
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid var(--border);
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            width: 100%;
+        }
+        footer a {
+            color: var(--gold);
+            text-decoration: none;
+        }
+
+        /* ============ ANIMATIONS ============ */
+        @keyframes pulse {
+            0%,
+            100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.6;
+            }
+        }
+        .animating {
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        .fade-in {
+            animation: fadeIn 0.4s ease-out;
+        }
+
+        /* ============ WORD COUNT BADGE ============ */
+        .word-count {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            background: #2a2a3e;
+            padding: 4px 12px;
+            border-radius: 20px;
+            display: inline-block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- HEADER -->
+        <header>
+            <h1>📜 Język Obrazowy</h1>
+            <p>Wpisz słowo, a generator stworzy dla niego unikalny znak — jak chiński czy japoński. Zapisz go w bazie i odczytuj za każdym razem, gdy zobaczysz ten wzór.</p>
+            <div class="ornament"></div>
+        </header>
+
+        <!-- MAIN GRID -->
+        <div class="main-grid">
+            <!-- LEFT PANEL: Generator -->
+            <div class="panel">
+                <h2><span class="icon">✍️</span> Generator Znaku</h2>
+                <div class="input-row">
+                    <input type="text" id="wordInput" placeholder="Wpisz słowo..." autocomplete="off" />
+                    <button class="btn btn-primary" id="generateBtn">Generuj</button>
+                </div>
+                <div class="canvas-wrapper">
+                    <div class="canvas-frame">
+                        <canvas id="mainCanvas" width="220" height="220"></canvas>
+                    </div>
+                    <div class="canvas-caption" id="canvasCaption">
+                        Wpisz słowo i kliknij <span class="highlight">Generuj</span>
+                    </div>
+                </div>
+                <div class="status-message empty" id="statusMessage"></div>
+                <div class="button-row">
+                    <button class="btn btn-success" id="saveBtn" disabled>💾 Zapisz do bazy</button>
+                    <button class="btn btn-secondary" id="clearBtn">🗑️ Wyczyść</button>
+                </div>
+            </div>
+
+            <!-- RIGHT PANEL: Database -->
+            <div class="panel">
+                <h2>
+                    <span class="icon">📚</span> Baza Słów
+                    <span class="word-count" id="wordCount">0 słów</span>
+                </h2>
+                <div class="gallery" id="gallery">
+                    <div class="gallery-empty">Baza jest pusta.<br>Wygeneruj i zapisz pierwsze słowo!</div>
+                </div>
+                <div class="export-import">
+                    <button class="btn btn-secondary" id="exportBtn">📤 Eksportuj</button>
+                    <button class="btn btn-secondary" id="importBtn">📥 Importuj</button>
+                    <input type="file" id="importFile" accept=".json" style="display:none;" />
+                </div>
+            </div>
+        </div>
+
+        <!-- RECOGNITION MODE -->
+        <div class="panel recognition-section">
+            <h2><span class="icon">🔍</span> Tryb Rozpoznawania</h2>
+            <p style="color:var(--text-muted); margin-bottom:16px; font-size:0.95rem;">
+                Zobacz znak i odgadnij, jakie słowo reprezentuje. Kliknij <strong>Losuj znak</strong>, aby rozpocząć.
+            </p>
+            <div class="recognition-box">
+                <div class="recognition-canvas-frame">
+                    <canvas id="recognitionCanvas" width="120" height="120"></canvas>
+                </div>
+                <div class="recognition-input-area">
+                    <input type="text" id="recognitionInput" placeholder="Twoje odgadnięcie..." autocomplete="off" />
+                    <button class="btn btn-primary" id="recognitionCheck">Sprawdź</button>
+                    <button class="btn btn-secondary" id="recognitionRandom">🎲 Losuj znak</button>
+                    <div class="recognition-feedback" id="recognitionFeedback"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- FOOTER -->
+        <footer>
+            <p>Generator Języka Obrazowego — każde słowo ma swój znak. <a href="#" id="footerReset">Zresetuj bazę</a></p>
+        </footer>
+    </div>
+
+    <script>
+        // =====================================================
+        // ==================== UTILITIES ====================
+        // =====================================================
+
+        /** Hash stringa (djb2) — zwraca 32-bitową liczbę */
+        function hashString(str) {
+            let hash = 5381;
+            for (let i = 0; i < str.length; i++) {
+                hash = ((hash << 5) + hash + str.charCodeAt(i)) | 0;
+            }
+            return Math.abs(hash);
+        }
+
+        /** Mulberry32 PRNG — deterministyczny generator liczb pseudolosowych */
+        function mulberry32(seed) {
+            let s = seed | 0;
+            return function() {
+                s = (s + 0x6D2B79F5) | 0;
+                let t = Math.imul(s ^ (s >>> 15), 1 | s);
+                t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+                return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+            };
+        }
+
+        /** Interpolacja liniowa */
+        function lerp(a, b, t) { return a + (b - a) * t; }
+
+        /** Easing ease-out */
+        function easeOut(t) { return 1 - Math.pow(1 - t, 3); }
+
+        // =====================================================
+        // ==================== GLYPH GENERATOR ====================
+        // =====================================================
+
+        /**
+         * Generuje dane znaku (listę kresek) na podstawie słowa.
+         * Kreski są definiowane w znormalizowanych współrzędnych [0,1].
+         */
+        function generateGlyphStrokes(word) {
+            const seed = hashString(word);
+            const rng = mulberry32(seed);
+
+            // Liczba kresek zależna od długości słowa i hasha
+            const baseStrokes = 4 + (word.length % 5) + Math.floor(rng() * 5); // 4-13
+            const numStrokes = Math.min(baseStrokes, 14);
+
+            // Typ kompozycji (wpływa na rozmieszczenie kresek)
+            const composition = Math.floor(rng() * 6);
+            // 0: pojedyncza, 1: lewo-prawo, 2: góra-dół, 3: zamknięta, 4: diagonalna, 5: rozproszona
+
+            const strokes = [];
+            const gridCols = 5;
+            const gridRows = 5;
+            const margin = 0.08;
+            const cellW = (1 - 2 * margin) / (gridCols - 1);
+            const cellH = (1 - 2 * margin) / (gridRows - 1);
+
+            function gridPoint(col, row) {
+                return {
+                    x: margin + col * cellW,
+                    y: margin + row * cellH
+                };
+            }
+
+            function randomGridPoint() {
+                const col = Math.floor(rng() * gridCols);
+                const row = Math.floor(rng() * gridRows);
+                const p = gridPoint(col, row);
+                // Dodaj lekki szum
+                p.x += (rng() - 0.5) * cellW * 0.6;
+                p.y += (rng() - 0.5) * cellH * 0.6;
+                return p;
+            }
+
+            function compositionZone(comp, index) {
+                // Zwraca zakres kolumn/wierszy dla danej kompozycji
+                const zones = {
+                    0: { cols: [0, 4], rows: [0, 4] }, // pełna
+                    1: { cols: [index % 2 === 0 ? 0 : 2, index % 2 === 0 ? 2 : 4], rows: [0, 4] }, // lewo-prawo
+                    2: { cols: [0, 4], rows: [index % 2 === 0 ? 0 : 2, index % 2 === 0 ? 2 : 4] }, // góra-dół
+                    3: { cols: [0, 1, 3, 4], rows: [0, 1, 3, 4] }, // zamknięta (brzegi)
+                    4: { cols: [0, 4], rows: [0, 4] }, // diagonalna
+                    5: { cols: [0, 4], rows: [0, 4] }, // rozproszona
+                };
+                return zones[comp] || zones[0];
+            }
+
+            function getStrokeType() {
+                // Typy kresek: 0-pozioma, 1-pionowa, 2-kropka, 3-lewy skos, 4-prawy skos, 5-hak, 6-łuk
+                return Math.floor(rng() * 7);
+            }
+
+            for (let i = 0; i < numStrokes; i++) {
+                const type = getStrokeType();
+                const zone = compositionZone(composition, i);
+                const start = randomGridPoint();
+                const end = randomGridPoint();
+
+                // Dostosuj pozycje do strefy kompozycji
+                if (composition === 1) {
+                    const half = zone.cols[0] >= 2 ? 0.5 : 0;
+                    start.x = half + rng() * 0.45;
+                    end.x = half + rng() * 0.45;
+                } else if (composition === 2) {
+                    const half = zone.rows[0] >= 2 ? 0.5 : 0;
+                    start.y = half + rng() * 0.45;
+                    end.y = half + rng() * 0.45;
+                }
+
+                strokes.push({
+                    type,
+                    start: { ...start },
+                    end: { ...end },
+                    width: 1.5 + rng() * 2.5, // szerokość kreski
+                    control: type === 6 ? {
+                        x: lerp(start.x, end.x, 0.3) + (rng() - 0.5) * 0.25,
+                        y: lerp(start.y, end.y, 0.5) + (rng() - 0.5) * 0.2,
+                    } : null,
+                });
+            }
+            return strokes;
+        }
+
+        // =====================================================
+        // ==================== CANVAS RENDERER ====================
+        // =====================================================
+
+        /**
+         * Rysuje pojedynczą kreskę na kontekście canvas.
+         * Kreski są w znormalizowanych współrzędnych [0,1].
+         */
+        function drawStroke(ctx, stroke, w, h, progress = 1) {
+            const sx = stroke.start.x * w;
+            const sy = stroke.start.y * h;
+            const ex = stroke.end.x * w;
+            const ey = stroke.end.y * h;
+            const lineWidth = stroke.width;
+
+            ctx.strokeStyle = '#1a1a1a';
+            ctx.fillStyle = '#1a1a1a';
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+
+            switch (stroke.type) {
+                case 0: // Pozioma
+                case 1: // Pionowa
+                    ctx.lineWidth = lineWidth;
+                    ctx.beginPath();
+                    ctx.moveTo(sx, sy);
+                    const px = lerp(sx, ex, progress);
+                    const py = lerp(sy, ey, progress);
+                    ctx.lineTo(px, py);
+                    ctx.stroke();
+                    break;
+
+                case 2: // Kropka
+                    ctx.lineWidth = 1;
+                    const dotRadius = lineWidth * 1.8 * progress;
+                    if (dotRadius > 0) {
+                        ctx.beginPath();
+                        ctx.arc(sx, sy, dotRadius, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                    break;
+
+                case 3: // Lewy skos (od góry-prawo do dołu-lewo)
+                    ctx.lineWidth = lineWidth;
+                    ctx.beginPath();
+                    const lx = lerp(sx, ex, progress);
+                    const ly = lerp(sy, ey, progress);
+                    ctx.moveTo(sx, sy);
+                    ctx.lineTo(lx, ly);
+                    ctx.stroke();
+                    break;
+
+                case 4: // Prawy skos (od góry-lewo do dołu-prawo)
+                    ctx.lineWidth = lineWidth;
+                    ctx.beginPath();
+                    const rx2 = lerp(sx, ex, progress);
+                    const ry2 = lerp(sy, ey, progress);
+                    ctx.moveTo(sx, sy);
+                    ctx.lineTo(rx2, ry2);
+                    ctx.stroke();
+                    break;
+
+                case 5: // Hak (pionowy z haczykiem na dole)
+                    ctx.lineWidth = lineWidth;
+                    const midY = lerp(sy, ey, 0.75);
+                    if (progress < 0.75) {
+                        const t = progress / 0.75;
+                        const hy = lerp(sy, midY, t);
+                        ctx.beginPath();
+                        ctx.moveTo(sx, sy);
+                        ctx.lineTo(sx, hy);
+                        ctx.stroke();
+                    } else {
+                        const t = (progress - 0.75) / 0.25;
+                        ctx.beginPath();
+                        ctx.moveTo(sx, sy);
+                        ctx.lineTo(sx, midY);
+                        const hookEndX = sx + (ex - sx) * t;
+                        const hookEndY = midY + (ey - midY) * t;
+                        ctx.quadraticCurveTo(sx + 3, midY + 3, hookEndX, hookEndY);
+                        ctx.stroke();
+                    }
+                    break;
+
+                case 6: // Łuk (krzywa Béziera)
+                    ctx.lineWidth = lineWidth;
+                    ctx.beginPath();
+                    ctx.moveTo(sx, sy);
+                    const cx = stroke.control ? stroke.control.x * w : lerp(sx, ex, 0.5);
+                    const cy = stroke.control ? stroke.control.y * h : lerp(sy, ey, 0.5);
+                    const qx = lerp(sx, cx, progress);
+                    const qy = lerp(sy, cy, progress);
+                    const rx = lerp(cx, ex, progress);
+                    const ry = lerp(cy, ey, progress);
+                    const mx = lerp(qx, rx, progress);
+                    const my = lerp(qy, ry, progress);
+                    ctx.quadraticCurveTo(qx, qy, mx, my);
+                    ctx.stroke();
+                    break;
+            }
+        }
+
+        /**
+         * Renderuje pełny znak na canvasie z opcjonalną animacją.
+         * @param {HTMLCanvasElement} canvas
+         * @param {Array} strokes - lista kresek
+         * @param {boolean} animate - czy animować malowanie
+         * @param {number} duration - czas trwania animacji (ms)
+         * @param {Function} onComplete - callback po zakończeniu
+         */
+        function renderGlyph(canvas, strokes, animate = false, duration = 1200, onComplete = null) {
+            const ctx = canvas.getContext('2d');
+            const w = canvas.width;
+            const h = canvas.height;
+
+            ctx.clearRect(0, 0, w, h);
+            // Tło
+            ctx.fillStyle = '#f5f0e6';
+            ctx.fillRect(0, 0, w, h);
+
+            if (!animate || strokes.length === 0) {
+                // Rysowanie natychmiastowe
+                strokes.forEach(s => drawStroke(ctx, s, w, h, 1));
+                if (onComplete) onComplete();
+                return;
+            }
+
+            // Animacja — kreski pojawiają się po kolei
+            const strokeDuration = duration / strokes.length;
+            let currentStroke = 0;
+            let startTime = null;
+
+            function animateFrame(timestamp) {
+                if (startTime === null) startTime = timestamp;
+                const elapsed = timestamp - startTime;
+                const totalProgress = Math.min(elapsed / duration, 1);
+
+                // Oblicz, która kreska jest aktualnie rysowana
+                const strokeIndexFloat = totalProgress * strokes.length;
+                const activeStroke = Math.floor(strokeIndexFloat);
+                const strokeProgress = strokeIndexFloat - activeStroke;
+
+                // Wyczyść i narysuj tło
+                ctx.clearRect(0, 0, w, h);
+                ctx.fillStyle = '#f5f0e6';
+                ctx.fillRect(0, 0, w, h);
+
+                // Narysuj ukończone kreski
+                for (let i = 0; i < activeStroke && i < strokes.length; i++) {
+                    drawStroke(ctx, strokes[i], w, h, 1);
+                }
+                // Narysuj aktualną kreskę z postępem
+                if (activeStroke < strokes.length) {
+                    const easedProgress = easeOut(strokeProgress);
+                    drawStroke(ctx, strokes[activeStroke], w, h, easedProgress);
+                }
+
+                if (totalProgress < 1) {
+                    requestAnimationFrame(animateFrame);
+                } else {
+                    // Końcowe czyszczenie — narysuj wszystkie kreski w pełni
+                    ctx.clearRect(0, 0, w, h);
+                    ctx.fillStyle = '#f5f0e6';
+                    ctx.fillRect(0, 0, w, h);
+                    strokes.forEach(s => drawStroke(ctx, s, w, h, 1));
+                    if (onComplete) onComplete();
+                }
+            }
+            requestAnimationFrame(animateFrame);
+        }
+
+        // =====================================================
+        // ==================== DATABASE (localStorage) ====================
+        // =====================================================
+
+        const DB_KEY = 'glyphLanguageDB';
+
+        function loadDatabase() {
+            try {
+                const data = localStorage.getItem(DB_KEY);
+                if (data) {
+                    const parsed = JSON.parse(data);
+                    if (parsed && Array.isArray(parsed.words)) return parsed;
+                }
+            } catch (e) {
+                console.warn('Błąd wczytywania bazy:', e);
+            }
+            return { words: [] };
+        }
+
+        function saveDatabase(db) {
+            try {
+                localStorage.setItem(DB_KEY, JSON.stringify(db));
+                return true;
+            } catch (e) {
+                console.error('Błąd zapisywania bazy:', e);
+                return false;
+            }
+        }
+
+        function findWord(db, word) {
+            const normalized = word.trim().toLowerCase();
+            return db.words.find(w => w.word.toLowerCase() === normalized);
+        }
+
+        function addWordToDatabase(db, word, glyphData) {
+            const existing = findWord(db, word);
+            if (existing) return { added: false, existing: true, entry: existing };
+            const entry = {
+                word: word.trim(),
+                glyphData,
+                timestamp: new Date().toISOString(),
+            };
+            db.words.push(entry);
+            saveDatabase(db);
+            return { added: true, existing: false, entry };
+        }
+
+        function removeWordFromDatabase(db, word) {
+            const idx = db.words.findIndex(w => w.word === word);
+            if (idx >= 0) {
+                db.words.splice(idx, 1);
+                saveDatabase(db);
+                return true;
+            }
+            return false;
+        }
+
+        function resetDatabase() {
+            localStorage.removeItem(DB_KEY);
+        }
+
+        // =====================================================
+        // ==================== UI — DOM ELEMENTS ====================
+        // =====================================================
+
+        const wordInput = document.getElementById('wordInput');
+        const generateBtn = document.getElementById('generateBtn');
+        const saveBtn = document.getElementById('saveBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        const mainCanvas = document.getElementById('mainCanvas');
+        const canvasCaption = document.getElementById('canvasCaption');
+        const statusMessage = document.getElementById('statusMessage');
+        const gallery = document.getElementById('gallery');
+        const wordCount = document.getElementById('wordCount');
+        const exportBtn = document.getElementById('exportBtn');
+        const importBtn = document.getElementById('importBtn');
+        const importFile = document.getElementById('importFile');
+        const recognitionCanvas = document.getElementById('recognitionCanvas');
+        const recognitionInput = document.getElementById('recognitionInput');
+        const recognitionCheck = document.getElementById('recognitionCheck');
+        const recognitionRandom = document.getElementById('recognitionRandom');
+        const recognitionFeedback = document.getElementById('recognitionFeedback');
+        const footerReset = document.getElementById('footerReset');
+
+        let db = loadDatabase();
+        let currentGlyphStrokes = null;
+        let currentGlyphWord = null;
+        let recognitionCurrentWord = null;
+
+        // =====================================================
+        // ==================== UI — ACTIONS ====================
+        // =====================================================
+
+        function updateWordCount() {
+            wordCount.textContent = `${db.words.length} słów`;
+        }
+
+        function setStatus(msg, type = 'info') {
+            statusMessage.textContent = msg;
+            statusMessage.className = `status-message ${type}`;
+        }
+
+        function clearStatus() {
+            setStatus('', 'empty');
+        }
+
+        function clearCanvasCaption() {
+            canvasCaption.innerHTML = 'Wpisz słowo i kliknij <span class="highlight">Generuj</span>';
+        }
+
+        function showCanvasCaption(word, isFromDB = false) {
+            if (isFromDB) {
+                canvasCaption.innerHTML = `Znak dla: <span class="highlight">${escapeHtml(word)}</span> (z bazy)`;
+            } else {
+                canvasCaption.innerHTML = `Nowy znak dla: <span class="highlight">${escapeHtml(word)}</span>`;
+            }
+        }
+
+        function escapeHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+
+        function renderGallery() {
+            const galleryEl = gallery;
+            galleryEl.innerHTML = '';
+
+            if (db.words.length === 0) {
+                galleryEl.innerHTML =
+                    '<div class="gallery-empty">Baza jest pusta.<br>Wygeneruj i zapisz pierwsze słowo!</div>';
+                return;
+            }
+
+            db.words.forEach(entry => {
+                const card = document.createElement('div');
+                card.className = 'gallery-card fade-in';
+                card.title = 'Kliknij, aby zobaczyć znak';
+
+                const miniCanvas = document.createElement('canvas');
+                miniCanvas.width = 60;
+                miniCanvas.height = 60;
+                // Renderuj znak
+                const strokes = entry.glyphData && entry.glyphData.length > 0 ?
+                    entry.glyphData :
+                    generateGlyphStrokes(entry.word);
+                renderGlyph(miniCanvas, strokes, false, 0);
+                card.appendChild(miniCanvas);
+
+                const label = document.createElement('div');
+                label.className = 'word-label';
+                label.textContent = entry.word;
+                card.appendChild(label);
+
+                const delBtn = document.createElement('button');
+                delBtn.className = 'delete-btn';
+                delBtn.textContent = '×';
+                delBtn.title = 'Usuń z bazy';
+                delBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    if (removeWordFromDatabase(db, entry.word)) {
+                        renderGallery();
+                        updateWordCount();
+                        setStatus(`Usunięto "${entry.word}" z bazy.`, 'warning');
+                        setTimeout(clearStatus, 2000);
+                    }
+                });
+                card.appendChild(delBtn);
+
+                card.addEventListener('click', () => {
+                    // Pokaż znak na głównym canvasie z animacją
+                    currentGlyphWord = entry.word;
+                    currentGlyphStrokes = entry.glyphData && entry.glyphData.length > 0 ?
+                        entry.glyphData :
+                        generateGlyphStrokes(entry.word);
+                    renderGlyph(mainCanvas, currentGlyphStrokes, true, 1200, () => {
+                        showCanvasCaption(entry.word, true);
+                        setStatus(`To jest znak słowa "${entry.word}"`, 'success');
+                        saveBtn.disabled = true;
+                        setTimeout(clearStatus, 2000);
+                    });
+                    wordInput.value = entry.word;
+                });
+
+                galleryEl.appendChild(card);
+            });
+        }
+
+        function generateNewGlyph() {
+            const word = wordInput.value.trim();
+            if (!word) {
+                setStatus('Wpisz słowo, aby wygenerować znak.', 'warning');
+                wordInput.focus();
+                return;
+            }
+
+            const existing = findWord(db, word);
+            if (existing) {
+                // Słowo już istnieje — pokaż jego znak
+                currentGlyphWord = existing.word;
+                currentGlyphStrokes = existing.glyphData && existing.glyphData.length > 0 ?
+                    existing.glyphData :
+                    generateGlyphStrokes(existing.word);
+                renderGlyph(mainCanvas, currentGlyphStrokes, true, 1200, () => {
+                    showCanvasCaption(existing.word, true);
+                    setStatus(`Słowo "${existing.word}" już istnieje w bazie. Pokazuję jego znak.`, 'info');
+                    saveBtn.disabled = true;
+                    setTimeout(clearStatus, 2500);
+                });
+            } else {
+                // Nowe słowo
+                currentGlyphWord = word;
+                currentGlyphStrokes = generateGlyphStrokes(word);
+                renderGlyph(mainCanvas, currentGlyphStrokes, true, 1200, () => {
+                    showCanvasCaption(word, false);
+                    setStatus(`Wygenerowano nowy znak dla "${word}". Zapisz go do bazy!`, 'success');
+                    saveBtn.disabled = false;
+                    setTimeout(() => {
+                        if (currentGlyphWord === word) setStatus('', 'empty');
+                    }, 3000);
+                });
+            }
+        }
+
+        function saveCurrentGlyph() {
+            if (!currentGlyphWord || !currentGlyphStrokes) {
+                setStatus('Najpierw wygeneruj znak.', 'warning');
+                return;
+            }
+            const result = addWordToDatabase(db, currentGlyphWord, currentGlyphStrokes);
+            if (result.added) {
+                renderGallery();
+                updateWordCount();
+                setStatus(`Zapisano "${currentGlyphWord}" do bazy!`, 'success');
+                saveBtn.disabled = true;
+                setTimeout(clearStatus, 2000);
+            } else if (result.existing) {
+                setStatus(`Słowo "${currentGlyphWord}" już istnieje w bazie.`, 'info');
+                saveBtn.disabled = true;
+                setTimeout(clearStatus, 2000);
+            }
+        }
+
+        function clearGenerator() {
+            const ctx = mainCanvas.getContext('2d');
+            ctx.clearRect(0, 0, mainCanvas.width, mainCanvas.height);
+            ctx.fillStyle = '#f5f0e6';
+            ctx.fillRect(0, 0, mainCanvas.width, mainCanvas.height);
+            wordInput.value = '';
+            currentGlyphStrokes = null;
+            currentGlyphWord = null;
+            saveBtn.disabled = true;
+            clearCanvasCaption();
+            clearStatus();
+            wordInput.focus();
+        }
+
+        function exportDatabase() {
+            if (db.words.length === 0) {
+                setStatus('Baza jest pusta — nie ma czego eksportować.', 'warning');
+                setTimeout(clearStatus, 2000);
+                return;
+            }
+            const dataStr = JSON.stringify(db, null, 2);
+            const blob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'jezyk_obrazowy_baza.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            setStatus('Eksportowano bazę do pliku JSON.', 'success');
+            setTimeout(clearStatus, 2000);
+        }
+
+        function importDatabase(file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    if (data && Array.isArray(data.words)) {
+                        // Połącz z istniejącą bazą (unikalne słowa)
+                        let addedCount = 0;
+                        data.words.forEach(entry => {
+                            if (entry.word && !findWord(db, entry.word)) {
+                                db.words.push({
+                                    word: entry.word,
+                                    glyphData: entry.glyphData || generateGlyphStrokes(entry.word),
+                                    timestamp: entry.timestamp || new Date().toISOString(),
+                                });
+                                addedCount++;
+                            }
+                        });
+                        saveDatabase(db);
+                        renderGallery();
+                        updateWordCount();
+                        setStatus(`Zaimportowano ${addedCount} nowych słów.`, 'success');
+                        setTimeout(clearStatus, 2500);
+                    } else {
+                        setStatus('Nieprawidłowy format pliku JSON.', 'warning');
+                        setTimeout(clearStatus, 2500);
+                    }
+                } catch (err) {
+                    setStatus('Błąd importu: nieprawidłowy JSON.', 'warning');
+                    setTimeout(clearStatus, 2500);
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        // =====================================================
+        // ==================== RECOGNITION MODE ====================
+        // =====================================================
+
+        function randomWordFromDB() {
+            if (db.words.length === 0) {
+                recognitionFeedback.textContent = 'Baza jest pusta. Zapisz najpierw kilka słów!';
+                recognitionFeedback.className = 'recognition-feedback incorrect';
+                return null;
+            }
+            const idx = Math.floor(Math.random() * db.words.length);
+            return db.words[idx];
+        }
+
+        function showRandomGlyphForRecognition() {
+            const entry = randomWordFromDB();
+            if (!entry) return;
+            recognitionCurrentWord = entry.word;
+            const strokes = entry.glyphData && entry.glyphData.length > 0 ?
+                entry.glyphData :
+                generateGlyphStrokes(entry.word);
+            renderGlyph(recognitionCanvas, strokes, false, 0);
+            recognitionInput.value = '';
+            recognitionFeedback.textContent = '';
+            recognitionFeedback.className = 'recognition-feedback';
+            recognitionInput.focus();
+        }
+
+        function checkRecognitionGuess() {
+            if (!recognitionCurrentWord) {
+                recognitionFeedback.textContent = 'Najpierw wylosuj znak!';
+                recognitionFeedback.className = 'recognition-feedback incorrect';
+                return;
+            }
+            const guess = recognitionInput.value.trim();
+            if (!guess) {
+                recognitionFeedback.textContent = 'Wpisz swoje odgadnięcie.';
+                recognitionFeedback.className = 'recognition-feedback incorrect';
+                return;
+            }
+            if (guess.toLowerCase() === recognitionCurrentWord.toLowerCase()) {
+                recognitionFeedback.textContent = `✅ Poprawnie! To znak słowa "${recognitionCurrentWord}".`;
+                recognitionFeedback.className = 'recognition-feedback correct';
+                recognitionInput.value = '';
+                // Automatycznie pokaż następny po chwili
+                setTimeout(() => {
+                    showRandomGlyphForRecognition();
+                }, 1800);
+            } else {
+                recognitionFeedback.textContent = `❌ Niepoprawnie. Spróbuj ponownie! (Podpowiedź: ${recognitionCurrentWord.length} liter)`;
+                recognitionFeedback.className = 'recognition-feedback incorrect';
+                recognitionInput.select();
+            }
+        }
+
+        // =====================================================
+        // ==================== EVENT HANDLERS ====================
+        // =====================================================
+
+        generateBtn.addEventListener('click', generateNewGlyph);
+        saveBtn.addEventListener('click', saveCurrentGlyph);
+        clearBtn.addEventListener('click', clearGenerator);
+
+        wordInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                generateNewGlyph();
+            }
+        });
+
+        exportBtn.addEventListener('click', exportDatabase);
+        importBtn.addEventListener('click', () => importFile.click());
+        importFile.addEventListener('change', (e) => {
+            if (e.target.files && e.target.files[0]) {
+                importDatabase(e.target.files[0]);
+                e.target.value = '';
+            }
+        });
+
+        recognitionCheck.addEventListener('click', checkRecognitionGuess);
+        recognitionRandom.addEventListener('click', showRandomGlyphForRecognition);
+        recognitionInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                checkRecognitionGuess();
+            }
+        });
+
+        footerReset.addEventListener('click', (e) => {
+            e.preventDefault();
+            if (confirm('Czy na pewno chcesz zresetować całą bazę?')) {
+                resetDatabase();
+                db = loadDatabase();
+                renderGallery();
+                updateWordCount();
+                clearGenerator();
+                recognitionCurrentWord = null;
+                const ctx = recognitionCanvas.getContext('2d');
+                ctx.clearRect(0, 0, recognitionCanvas.width, recognitionCanvas.height);
+                ctx.fillStyle = '#f5f0e6';
+                ctx.fillRect(0, 0, recognitionCanvas.width, recognitionCanvas.height);
+                recognitionFeedback.textContent = '';
+                setStatus('Baza została zresetowana.', 'info');
+                setTimeout(clearStatus, 2000);
+            }
+        });
+
+        // =====================================================
+        // ==================== INIT ====================
+        // =====================================================
+
+        function init() {
+            // Renderuj galerię z bazy
+            renderGallery();
+            updateWordCount();
+
+            // Ustaw początkowe tło canvasa
+            clearGenerator();
+
+            // Ustaw początkowe tło canvasa rozpoznawania
+            const ctx = recognitionCanvas.getContext('2d');
+            ctx.fillStyle = '#f5f0e6';
+            ctx.fillRect(0, 0, recognitionCanvas.width, recognitionCanvas.height);
+
+            // Fokus na pole wejściowe
+            wordInput.focus();
+
+            // Opcjonalnie: przykładowe słowa dla demonstracji (komentarz — usuń aby wyłączyć)
+            // if (db.words.length === 0) {
+            //     const demoWords = ['miłość', 'słońce', 'woda', 'dom', 'drzewo', 'góra', 'ogień', 'wiatr'];
+            //     demoWords.forEach(w => {
+            //         const strokes = generateGlyphStrokes(w);
+            //         addWordToDatabase(db, w, strokes);
+            //     });
+            //     renderGallery();
+            //     updateWordCount();
+            // }
+        }
+
+        init();
+    </script>
+</body>
+</html>
