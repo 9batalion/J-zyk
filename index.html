@@ -136,6 +136,13 @@
         .input-row input::placeholder {
             color: var(--text-muted);
         }
+        .generator-hint {
+            margin: -4px 0 16px;
+            color: var(--text-muted);
+            font-size: 0.86rem;
+            line-height: 1.45;
+            text-align: center;
+        }
         .btn {
             padding: 12px 22px;
             font-size: 1rem;
@@ -147,6 +154,13 @@
             letter-spacing: 0.5px;
             font-family: inherit;
             white-space: nowrap;
+        }
+        .btn:disabled {
+            opacity: 0.48;
+            cursor: not-allowed;
+            transform: none !important;
+            box-shadow: none !important;
+            filter: grayscale(0.25);
         }
         .btn-primary {
             background: linear-gradient(135deg, var(--gold), var(--gold-dim));
@@ -502,6 +516,7 @@
                     <input type="text" id="wordInput" placeholder="Wpisz słowo..." autocomplete="off" />
                     <button class="btn btn-primary" id="generateBtn">Generuj</button>
                 </div>
+                <p class="generator-hint">Każde kliknięcie tworzy nowy wariant. Do bazy trafia dopiero znak, który zapiszesz.</p>
                 <div class="canvas-wrapper">
                     <div class="canvas-frame">
                         <canvas id="mainCanvas" width="520" height="520"></canvas>
@@ -585,6 +600,14 @@
             };
         }
 
+        /** Łączy hash słowa z losowym numerem wariantu. */
+        function mixSeeds(a, b) {
+            let x = (a ^ b) >>> 0;
+            x = Math.imul(x ^ (x >>> 16), 0x7feb352d);
+            x = Math.imul(x ^ (x >>> 15), 0x846ca68b);
+            return (x ^ (x >>> 16)) >>> 0;
+        }
+
         /** Interpolacja liniowa */
         function lerp(a, b, t) { return a + (b - a) * t; }
 
@@ -606,9 +629,12 @@
          * się tylko czasami. Dzięki temu glify przypominają pojedyncze znaki
          * z fotografii zamiast luźnego zbioru kresek.
          */
-        function generateGlyphStrokes(word) {
+        function generateGlyphStrokes(word, variantSeed = null) {
             const normalizedWord = word.trim().toLocaleLowerCase('pl-PL');
-            const seed = hashString(normalizedWord);
+            const wordSeed = hashString(normalizedWord);
+            const seed = variantSeed === null || variantSeed === undefined
+                ? wordSeed
+                : mixSeeds(wordSeed, variantSeed >>> 0);
             const rng = mulberry32(seed);
             const strokes = [];
             const width = 2.05 + rng() * 0.38;
@@ -1064,18 +1090,30 @@
             return db.words.find(w => w.word.toLowerCase() === normalized);
         }
 
-        function addWordToDatabase(db, word, glyphData) {
+        function addWordToDatabase(db, word, glyphData, variantSeed = null, replaceExisting = false) {
             const existing = findWord(db, word);
-            if (existing) return { added: false, existing: true, entry: existing };
+            if (existing) {
+                if (!replaceExisting) {
+                    return { added: false, replaced: false, existing: true, entry: existing };
+                }
+                existing.word = word.trim();
+                existing.glyphData = glyphData;
+                existing.glyphVersion = GLYPH_VERSION;
+                existing.variantSeed = variantSeed;
+                existing.timestamp = new Date().toISOString();
+                saveDatabase(db);
+                return { added: false, replaced: true, existing: true, entry: existing };
+            }
             const entry = {
                 word: word.trim(),
                 glyphData,
                 glyphVersion: GLYPH_VERSION,
+                variantSeed,
                 timestamp: new Date().toISOString(),
             };
             db.words.push(entry);
             saveDatabase(db);
-            return { added: true, existing: false, entry };
+            return { added: true, replaced: false, existing: false, entry };
         }
 
         function removeWordFromDatabase(db, word) {
@@ -1119,13 +1157,58 @@
         let db = loadDatabase();
         let currentGlyphStrokes = null;
         let currentGlyphWord = null;
+        let currentGlyphVariantSeed = null;
+        let currentGlyphIsDraft = false;
         let recognitionCurrentWord = null;
+        let variantNonce = 0;
+        const recentVariantSignatures = new Map();
+
+        function nextVariantSeed(word) {
+            variantNonce = (variantNonce + 1) >>> 0;
+            let entropy = ((Date.now() >>> 0) ^ Math.imul(variantNonce, 0x9e3779b1)) >>> 0;
+
+            try {
+                if (globalThis.crypto && typeof globalThis.crypto.getRandomValues === 'function') {
+                    const randomValue = new Uint32Array(1);
+                    globalThis.crypto.getRandomValues(randomValue);
+                    entropy ^= randomValue[0];
+                } else {
+                    entropy ^= Math.floor(Math.random() * 0x100000000) >>> 0;
+                }
+            } catch (e) {
+                entropy ^= Math.floor(Math.random() * 0x100000000) >>> 0;
+            }
+
+            return mixSeeds(hashString(word), entropy >>> 0);
+        }
+
+        function generateUniqueGlyphVariant(word) {
+            const key = word.trim().toLocaleLowerCase('pl-PL');
+            const recent = recentVariantSignatures.get(key) || [];
+
+            for (let attempt = 0; attempt < 16; attempt++) {
+                const variantSeed = nextVariantSeed(key);
+                const strokes = generateGlyphStrokes(key, variantSeed);
+                const signature = JSON.stringify(strokes);
+                if (!recent.includes(signature)) {
+                    recent.push(signature);
+                    if (recent.length > 40) recent.shift();
+                    recentVariantSignatures.set(key, recent);
+                    return { strokes, variantSeed };
+                }
+            }
+
+            // Praktycznie nieosiągalny bezpiecznik: licznik nadal gwarantuje
+            // zmianę materiału wejściowego przy kolejnym kliknięciu.
+            const variantSeed = nextVariantSeed(`${key}-${variantNonce}`);
+            return { strokes: generateGlyphStrokes(key, variantSeed), variantSeed };
+        }
 
         function upgradeDatabaseGlyphs() {
             let changed = false;
             db.words.forEach(entry => {
                 if (entry.glyphVersion !== GLYPH_VERSION || !Array.isArray(entry.glyphData)) {
-                    entry.glyphData = generateGlyphStrokes(entry.word);
+                    entry.glyphData = generateGlyphStrokes(entry.word, entry.variantSeed);
                     entry.glyphVersion = GLYPH_VERSION;
                     changed = true;
                 }
@@ -1136,7 +1219,7 @@
         function getEntryGlyph(entry) {
             return entry.glyphData && entry.glyphVersion === GLYPH_VERSION
                 ? entry.glyphData
-                : generateGlyphStrokes(entry.word);
+                : generateGlyphStrokes(entry.word, entry.variantSeed);
         }
 
         // =====================================================
@@ -1164,7 +1247,7 @@
             if (isFromDB) {
                 canvasCaption.innerHTML = `Znak dla: <span class="highlight">${escapeHtml(word)}</span> (z bazy)`;
             } else {
-                canvasCaption.innerHTML = `Nowy znak dla: <span class="highlight">${escapeHtml(word)}</span>`;
+                canvasCaption.innerHTML = `Nowy wariant dla: <span class="highlight">${escapeHtml(word)}</span>`;
             }
         }
 
@@ -1221,6 +1304,8 @@
                     // Pokaż znak na głównym canvasie z animacją
                     currentGlyphWord = entry.word;
                     currentGlyphStrokes = getEntryGlyph(entry);
+                    currentGlyphVariantSeed = entry.variantSeed ?? null;
+                    currentGlyphIsDraft = false;
                     renderGlyph(mainCanvas, currentGlyphStrokes, true, 1200, () => {
                         showCanvasCaption(entry.word, true);
                         setStatus(`To jest znak słowa "${entry.word}"`, 'success');
@@ -1244,31 +1329,25 @@
             }
 
             const existing = findWord(db, word);
-            if (existing) {
-                // Słowo już istnieje — pokaż jego znak
-                currentGlyphWord = existing.word;
-                currentGlyphStrokes = getEntryGlyph(existing);
-                renderGlyph(mainCanvas, currentGlyphStrokes, true, 1200, () => {
-                    showCanvasCaption(existing.word, true);
-                    setStatus(`Słowo "${existing.word}" już istnieje w bazie. Pokazuję jego znak.`, 'info');
-                    saveBtn.disabled = true;
-                    downloadBtn.disabled = false;
-                    setTimeout(clearStatus, 2500);
-                });
-            } else {
-                // Nowe słowo
-                currentGlyphWord = word;
-                currentGlyphStrokes = generateGlyphStrokes(word);
-                renderGlyph(mainCanvas, currentGlyphStrokes, true, 1200, () => {
-                    showCanvasCaption(word, false);
-                    setStatus(`Wygenerowano nowy znak dla "${word}". Zapisz go do bazy!`, 'success');
-                    saveBtn.disabled = false;
-                    downloadBtn.disabled = false;
-                    setTimeout(() => {
-                        if (currentGlyphWord === word) setStatus('', 'empty');
-                    }, 3000);
-                });
-            }
+            const variant = generateUniqueGlyphVariant(word);
+
+            currentGlyphWord = word;
+            currentGlyphStrokes = variant.strokes;
+            currentGlyphVariantSeed = variant.variantSeed;
+            currentGlyphIsDraft = true;
+            saveBtn.disabled = true;
+            downloadBtn.disabled = true;
+
+            renderGlyph(mainCanvas, currentGlyphStrokes, true, 900, () => {
+                showCanvasCaption(word, false);
+                if (existing) {
+                    setStatus(`Nowy wariant dla "${word}". Zapisanie go zastąpi obecny znak w bazie.`, 'info');
+                } else {
+                    setStatus(`Nowy wariant dla "${word}". Klikaj Generuj, aż wybierzesz najlepszy.`, 'success');
+                }
+                saveBtn.disabled = false;
+                downloadBtn.disabled = false;
+            });
         }
 
         function saveCurrentGlyph() {
@@ -1276,15 +1355,44 @@
                 setStatus('Najpierw wygeneruj znak.', 'warning');
                 return;
             }
-            const result = addWordToDatabase(db, currentGlyphWord, currentGlyphStrokes);
+            if (!currentGlyphIsDraft) {
+                setStatus('Ten znak jest już zapisany w bazie.', 'info');
+                return;
+            }
+            if (wordInput.value.trim().toLocaleLowerCase('pl-PL') !== currentGlyphWord.trim().toLocaleLowerCase('pl-PL')) {
+                setStatus('Zmieniono słowo w polu. Kliknij Generuj, aby utworzyć dla niego znak.', 'warning');
+                return;
+            }
+
+            const existing = findWord(db, currentGlyphWord);
+            if (existing) {
+                const replace = confirm(`Słowo "${existing.word}" ma już zapisany znak. Czy zastąpić go aktualnym wariantem?`);
+                if (!replace) {
+                    setStatus('Nie zmieniono zapisanego znaku. Możesz losować kolejne warianty.', 'info');
+                    return;
+                }
+            }
+
+            const result = addWordToDatabase(
+                db,
+                currentGlyphWord,
+                currentGlyphStrokes,
+                currentGlyphVariantSeed,
+                Boolean(existing)
+            );
             if (result.added) {
                 renderGallery();
                 updateWordCount();
                 setStatus(`Zapisano "${currentGlyphWord}" do bazy!`, 'success');
+                currentGlyphIsDraft = false;
+                showCanvasCaption(currentGlyphWord, true);
                 saveBtn.disabled = true;
                 setTimeout(clearStatus, 2000);
-            } else if (result.existing) {
-                setStatus(`Słowo "${currentGlyphWord}" już istnieje w bazie.`, 'info');
+            } else if (result.replaced) {
+                renderGallery();
+                setStatus(`Zastąpiono zapisany znak dla "${currentGlyphWord}".`, 'success');
+                currentGlyphIsDraft = false;
+                showCanvasCaption(currentGlyphWord, true);
                 saveBtn.disabled = true;
                 setTimeout(clearStatus, 2000);
             }
@@ -1297,6 +1405,8 @@
             wordInput.value = '';
             currentGlyphStrokes = null;
             currentGlyphWord = null;
+            currentGlyphVariantSeed = null;
+            currentGlyphIsDraft = false;
             saveBtn.disabled = true;
             downloadBtn.disabled = true;
             clearCanvasCaption();
@@ -1371,8 +1481,9 @@
                                     word: entry.word,
                                     glyphData: entry.glyphVersion === GLYPH_VERSION && entry.glyphData
                                         ? entry.glyphData
-                                        : generateGlyphStrokes(entry.word),
+                                        : generateGlyphStrokes(entry.word, entry.variantSeed),
                                     glyphVersion: GLYPH_VERSION,
+                                    variantSeed: entry.variantSeed ?? null,
                                     timestamp: entry.timestamp || new Date().toISOString(),
                                 });
                                 addedCount++;
@@ -1461,6 +1572,16 @@
             if (e.key === 'Enter') {
                 e.preventDefault();
                 generateNewGlyph();
+            }
+        });
+
+        wordInput.addEventListener('input', () => {
+            if (!currentGlyphIsDraft || !currentGlyphWord) return;
+            const matchesDraft = wordInput.value.trim().toLocaleLowerCase('pl-PL') ===
+                currentGlyphWord.trim().toLocaleLowerCase('pl-PL');
+            saveBtn.disabled = !matchesDraft;
+            if (!matchesDraft) {
+                setStatus('Kliknij Generuj, aby utworzyć wariant dla zmienionego słowa.', 'info');
             }
         });
 
