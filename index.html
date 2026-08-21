@@ -355,6 +355,23 @@
             align-items: center;
         }
         @media (max-width: 600px) {
+            body {
+                padding: 16px 12px calc(96px + env(safe-area-inset-bottom));
+            }
+            header {
+                margin-bottom: 26px;
+            }
+            header h1 {
+                font-size: clamp(2.15rem, 11vw, 2.6rem);
+                line-height: 1.08;
+            }
+            header p {
+                font-size: 1rem;
+                line-height: 1.55;
+            }
+            .panel {
+                padding: 18px;
+            }
             .recognition-box {
                 grid-template-columns: 1fr;
                 text-align: center;
@@ -472,7 +489,7 @@
         <!-- HEADER -->
         <header>
             <h1>📜 Język Obrazowy</h1>
-            <p>Wpisz słowo, a generator stworzy dla niego unikalny znak — jak chiński czy japoński. Zapisz go w bazie i odczytuj za każdym razem, gdy zobaczysz ten wzór.</p>
+            <p>Wpisz słowo, a generator stworzy dla niego unikalny, geometryczny znak inspirowany wzorem. Zapisz go w bazie i ucz się rozpoznawać własny język symboli.</p>
             <div class="ornament"></div>
         </header>
 
@@ -582,19 +599,19 @@
          * Generuje dane znaku (listę kresek) na podstawie słowa.
          * Kreski są definiowane w znormalizowanych współrzędnych [0,1].
          */
-        const GLYPH_VERSION = 2;
+        const GLYPH_VERSION = 3;
 
         /**
-         * Generuje spójny, kanciasty glif inspirowany wzorem referencyjnym.
-         * Zamiast niezależnych losowych kresek używa jednej konstrukcji bazowej
-         * oraz kilku charakterystycznych akcentów: pierścieni, nacięć i kresek.
+         * Generator V3: każdy znak ma zwarty szkielet, a ozdobniki pojawiają
+         * się tylko czasami. Dzięki temu glify przypominają pojedyncze znaki
+         * z fotografii zamiast luźnego zbioru kresek.
          */
         function generateGlyphStrokes(word) {
             const normalizedWord = word.trim().toLocaleLowerCase('pl-PL');
             const seed = hashString(normalizedWord);
             const rng = mulberry32(seed);
             const strokes = [];
-            const width = 2.35 + rng() * 0.45;
+            const width = 2.05 + rng() * 0.38;
 
             const line = (a, b, customWidth = width) => ({
                 kind: 'line', points: [a, b], width: customWidth
@@ -602,180 +619,132 @@
             const path = (points, customWidth = width) => ({
                 kind: 'polyline', points, width: customWidth
             });
-            const ring = (center, radius = 0.027, customWidth = width * 0.9) => ({
+            const ring = (center, radius = 0.025, customWidth = width * 0.92) => ({
                 kind: 'circle', center, radius, width: customWidth
             });
-            const dot = (center, radius = 0.011) => ({
+            const dot = (center, radius = 0.009) => ({
                 kind: 'dot', center, radius
             });
 
-            // Dziesięć czytelnych szkieletów. Dalsze modyfikatory sprawiają,
-            // że nawet słowa korzystające z tego samego szkieletu są różne.
+            // Każdy szkielet zawiera połączone ścieżki, punkty dla pierścieni,
+            // miejsce na kreski równoległe i możliwe krótkie odgałęzienia.
             const templates = [
-                () => ({
-                    strokes: [
-                        path([[0.27, 0.72], [0.50, 0.19], [0.75, 0.72]]),
-                        line([0.75, 0.72], [0.36, 0.72])
-                    ],
-                    anchors: [[0.50, 0.19], [0.27, 0.72], [0.75, 0.72]],
-                    bars: [0.20, 0.43, 'vertical']
-                }),
-                () => ({
-                    strokes: [
-                        path([[0.50, 0.79], [0.50, 0.42], [0.27, 0.20]]),
-                        line([0.50, 0.42], [0.74, 0.18])
-                    ],
-                    anchors: [[0.50, 0.79], [0.27, 0.20], [0.74, 0.18]],
-                    bars: [0.68, 0.62, 'horizontal']
-                }),
-                () => ({
-                    strokes: [
-                        path([[0.22, 0.72], [0.51, 0.69], [0.42, 0.47], [0.72, 0.47], [0.62, 0.22]])
-                    ],
-                    anchors: [[0.22, 0.72], [0.62, 0.22], [0.42, 0.47]],
-                    bars: [0.26, 0.30, 'horizontal']
-                }),
-                () => ({
-                    strokes: [
-                        path([[0.31, 0.18], [0.31, 0.68], [0.69, 0.68]]),
-                        line([0.69, 0.68], [0.72, 0.56])
-                    ],
-                    anchors: [[0.31, 0.18], [0.31, 0.68], [0.69, 0.68]],
-                    bars: [0.58, 0.28, 'vertical']
-                }),
-                () => ({
-                    strokes: [
-                        path([[0.25, 0.69], [0.27, 0.27], [0.70, 0.31], [0.64, 0.68]]),
-                        line([0.64, 0.68], [0.40, 0.69])
-                    ],
-                    anchors: [[0.25, 0.69], [0.27, 0.27], [0.70, 0.31]],
-                    bars: [0.73, 0.49, 'vertical']
-                }),
-                () => ({
-                    strokes: [
-                        path([[0.22, 0.27], [0.48, 0.72], [0.74, 0.21]]),
-                        line([0.48, 0.72], [0.63, 0.81])
-                    ],
-                    anchors: [[0.22, 0.27], [0.48, 0.72], [0.74, 0.21]],
-                    bars: [0.29, 0.52, 'horizontal']
-                }),
-                () => ({
-                    strokes: [
-                        line([0.24, 0.25], [0.76, 0.25]),
-                        path([[0.50, 0.25], [0.49, 0.73], [0.63, 0.79]])
-                    ],
-                    anchors: [[0.24, 0.25], [0.76, 0.25], [0.49, 0.73]],
-                    bars: [0.26, 0.56, 'horizontal']
-                }),
-                () => ({
-                    strokes: [
-                        path([[0.22, 0.73], [0.62, 0.68], [0.43, 0.45], [0.74, 0.23]])
-                    ],
-                    anchors: [[0.22, 0.73], [0.43, 0.45], [0.74, 0.23]],
-                    bars: [0.28, 0.25, 'horizontal']
-                }),
-                () => ({
-                    strokes: [
-                        line([0.45, 0.78], [0.45, 0.22]),
-                        line([0.45, 0.47], [0.22, 0.31]),
-                        line([0.45, 0.58], [0.73, 0.37])
-                    ],
-                    anchors: [[0.45, 0.78], [0.45, 0.22], [0.22, 0.31], [0.73, 0.37]],
-                    bars: [0.68, 0.67, 'horizontal']
-                }),
-                () => ({
-                    strokes: [
-                        path([[0.27, 0.73], [0.27, 0.36], [0.48, 0.20], [0.72, 0.38], [0.72, 0.68]]),
-                        line([0.72, 0.68], [0.57, 0.68])
-                    ],
-                    anchors: [[0.27, 0.73], [0.48, 0.20], [0.72, 0.68]],
-                    bars: [0.22, 0.52, 'vertical']
-                })
+                { paths: [[[0.34,0.68],[0.50,0.30],[0.68,0.68]], [[0.68,0.68],[0.43,0.68]]], anchors: [[0.50,0.30],[0.34,0.68],[0.68,0.68]], bars: [0.29,0.48,'vertical'], branches: [[0.50,0.30,0.10,-0.02]] },
+                { paths: [[[0.33,0.31],[0.49,0.67],[0.67,0.30]], [[0.49,0.67],[0.59,0.75]]], anchors: [[0.33,0.31],[0.49,0.67],[0.67,0.30]], bars: [0.38,0.48,'horizontal'], branches: [[0.49,0.49,0.12,-0.02]] },
+                { paths: [[[0.50,0.72],[0.50,0.45],[0.34,0.30]], [[0.50,0.45],[0.68,0.30]]], anchors: [[0.50,0.72],[0.34,0.30],[0.68,0.30]], bars: [0.67,0.54,'horizontal'], branches: [[0.50,0.57,-0.11,0.01]] },
+                { paths: [[[0.33,0.31],[0.68,0.31]], [[0.51,0.31],[0.50,0.67],[0.60,0.73]]], anchors: [[0.33,0.31],[0.68,0.31],[0.50,0.67]], bars: [0.39,0.55,'horizontal'], branches: [[0.50,0.51,0.11,-0.06]] },
+                { paths: [[[0.36,0.29],[0.36,0.65],[0.65,0.65],[0.69,0.55]]], anchors: [[0.36,0.29],[0.36,0.65],[0.65,0.65]], bars: [0.63,0.40,'vertical'], branches: [[0.50,0.65,0.02,-0.12]] },
+                { paths: [[[0.32,0.68],[0.60,0.64],[0.45,0.49],[0.68,0.31]]], anchors: [[0.32,0.68],[0.45,0.49],[0.68,0.31]], bars: [0.35,0.36,'horizontal'], branches: [[0.60,0.64,0.09,0.08]] },
+                { paths: [[[0.36,0.68],[0.35,0.36],[0.66,0.38],[0.63,0.67]], [[0.63,0.67],[0.47,0.68]]], anchors: [[0.36,0.68],[0.35,0.36],[0.66,0.38]], bars: [0.69,0.52,'vertical'], branches: [[0.50,0.37,-0.02,0.11]] },
+                { paths: [[[0.34,0.68],[0.34,0.43],[0.50,0.29],[0.67,0.43],[0.67,0.66]]], anchors: [[0.34,0.68],[0.50,0.29],[0.67,0.66]], bars: [0.29,0.53,'vertical'], branches: [[0.50,0.29,0.09,0.08]] },
+                { paths: [[[0.47,0.71],[0.47,0.30]], [[0.47,0.46],[0.32,0.35]], [[0.47,0.55],[0.66,0.40]]], anchors: [[0.47,0.71],[0.47,0.30],[0.32,0.35],[0.66,0.40]], bars: [0.62,0.61,'horizontal'], branches: [[0.47,0.61,-0.12,0.00]] },
+                { paths: [[[0.33,0.68],[0.55,0.66],[0.45,0.50],[0.67,0.50],[0.61,0.31]]], anchors: [[0.33,0.68],[0.45,0.50],[0.61,0.31]], bars: [0.35,0.36,'horizontal'], branches: [[0.55,0.66,0.10,0.07]] },
+                { paths: [[[0.33,0.31],[0.68,0.31]], [[0.55,0.31],[0.62,0.67]], [[0.62,0.55],[0.47,0.68]]], anchors: [[0.33,0.31],[0.68,0.31],[0.62,0.67]], bars: [0.38,0.55,'horizontal'], branches: [[0.55,0.31,-0.07,0.10]] },
+                { paths: [[[0.34,0.31],[0.67,0.49],[0.35,0.68]], [[0.35,0.68],[0.40,0.51]]], anchors: [[0.34,0.31],[0.67,0.49],[0.35,0.68]], bars: [0.62,0.35,'vertical'], branches: [[0.40,0.51,0.12,0.01]] },
+                { paths: [[[0.32,0.34],[0.48,0.49],[0.34,0.67]], [[0.48,0.49],[0.68,0.34]]], anchors: [[0.32,0.34],[0.34,0.67],[0.68,0.34]], bars: [0.61,0.58,'horizontal'], branches: [[0.48,0.49,0.17,0.03]] },
+                { paths: [[[0.37,0.29],[0.37,0.57],[0.45,0.68],[0.58,0.66],[0.65,0.55]]], anchors: [[0.37,0.29],[0.45,0.68],[0.65,0.55]], bars: [0.62,0.39,'vertical'], branches: [[0.37,0.49,0.12,-0.05]] },
+                { paths: [[[0.35,0.66],[0.47,0.50],[0.35,0.34]], [[0.47,0.50],[0.67,0.51]]], anchors: [[0.35,0.66],[0.35,0.34],[0.67,0.51]], bars: [0.61,0.39,'horizontal'], branches: [[0.47,0.50,0.06,-0.13]] },
+                { paths: [[[0.35,0.29],[0.35,0.61],[0.49,0.69],[0.65,0.61],[0.65,0.35]]], anchors: [[0.35,0.29],[0.49,0.69],[0.65,0.35]], bars: [0.70,0.49,'vertical'], branches: [[0.49,0.69,0.11,0.06]] }
             ];
 
-            const template = templates[seed % templates.length]();
-            strokes.push(...template.strokes);
+            const template = templates[seed % templates.length];
+            template.paths.forEach(points => strokes.push(path(points)));
 
-            // Pierścień przy jednym z węzłów jest najmocniejszą cechą wzoru.
-            const ringIndex = (seed >>> 8) % template.anchors.length;
-            const ringAnchor = template.anchors[ringIndex];
-            strokes.push(ring(ringAnchor, 0.028 + rng() * 0.010));
-
-            // Czasem drugi, mniejszy pierścień lub kropka równoważy kompozycję.
-            if (rng() > 0.54) {
-                const second = template.anchors[(ringIndex + 1 + ((seed >>> 12) % Math.max(1, template.anchors.length - 1))) % template.anchors.length];
-                strokes.push(rng() > 0.38 ? ring(second, 0.018 + rng() * 0.006) : dot(second));
+            // Pierścień występuje często, lecz nie obowiązkowo.
+            const ringRoll = ((seed >>> 8) & 255) / 255;
+            const ringIndex = (seed >>> 16) % template.anchors.length;
+            if (ringRoll < 0.82) {
+                strokes.push(ring(template.anchors[ringIndex], 0.023 + rng() * 0.008));
             }
 
-            // Dwie do czterech równoległych kresek, jak na materiale referencyjnym.
-            const barCount = 2 + ((seed >>> 14) % 3);
-            const [baseBarX, baseBarY, baseOrientation] = template.bars;
-            const barX = baseBarX + (rng() - 0.5) * 0.055;
-            const barY = baseBarY + (rng() - 0.5) * 0.055;
-            const orientation = ((seed >>> 17) & 1)
-                ? (baseOrientation === 'vertical' ? 'horizontal' : 'vertical')
-                : baseOrientation;
-            const barLength = 0.10 + rng() * 0.045;
-            const barGap = 0.027;
-            for (let i = 0; i < barCount; i++) {
-                const offset = (i - (barCount - 1) / 2) * barGap;
-                if (orientation === 'vertical') {
-                    strokes.push(line(
-                        [barX + offset, barY - barLength / 2],
-                        [barX + offset, barY + barLength / 2],
-                        width * 0.82
-                    ));
-                } else {
-                    strokes.push(line(
-                        [barX - barLength / 2, barY + offset],
-                        [barX + barLength / 2, barY + offset],
-                        width * 0.82
-                    ));
+            // Drugie zakończenie z pierścieniem jest rzadkie.
+            if (((seed >>> 11) & 31) < 6) {
+                const secondIndex = (ringIndex + 1 + ((seed >>> 21) % (template.anchors.length - 1))) % template.anchors.length;
+                strokes.push(ring(template.anchors[secondIndex], 0.018 + rng() * 0.005));
+            }
+
+            // Krótkie odgałęzienie zawsze wychodzi ze szkieletu, więc nie pływa
+            // samotnie po płótnie jak w poprzedniej wersji.
+            if (((seed >>> 5) & 15) < 7) {
+                const branch = template.branches[(seed >>> 13) % template.branches.length];
+                const [x, y, dx, dy] = branch;
+                const branchScale = 0.78 + rng() * 0.28;
+                strokes.push(line([x, y], [x + dx * branchScale, y + dy * branchScale], width * 0.94));
+            }
+
+            // Równoległe kreski występują tylko w części znaków i pozostają
+            // blisko głównej figury.
+            const barsRoll = ((seed >>> 17) & 127) / 127;
+            if (barsRoll < 0.46) {
+                const barCount = 2 + ((seed >>> 24) % 3);
+                const [barX, barY, baseOrientation] = template.bars;
+                const orientation = ((seed >>> 27) & 1)
+                    ? (baseOrientation === 'vertical' ? 'horizontal' : 'vertical')
+                    : baseOrientation;
+                const barLength = 0.070 + rng() * 0.025;
+                const barGap = 0.019;
+                for (let i = 0; i < barCount; i++) {
+                    const offset = (i - (barCount - 1) / 2) * barGap;
+                    if (orientation === 'vertical') {
+                        strokes.push(line(
+                            [barX + offset, barY - barLength / 2],
+                            [barX + offset, barY + barLength / 2],
+                            width * 0.82
+                        ));
+                    } else {
+                        strokes.push(line(
+                            [barX - barLength / 2, barY + offset],
+                            [barX + barLength / 2, barY + offset],
+                            width * 0.82
+                        ));
+                    }
                 }
+            } else if (barsRoll > 0.91) {
+                // Sporadyczna para punktów odpowiada drobnym znakom z referencji.
+                const [x, y] = template.bars;
+                strokes.push(dot([x, y - 0.018]));
+                strokes.push(dot([x, y + 0.030]));
             }
 
-            // Sygnatura oparta o kolejne bity hasha ogranicza podobieństwo słów,
-            // które trafiły na ten sam szkielet bazowy.
-            const signature = (seed >>> 19) % 4;
-            const side = ((seed >>> 23) & 1) ? 1 : -1;
-            const signatureY = 0.35 + ((seed >>> 24) % 24) / 100;
-            if (signature === 0) {
-                strokes.push(line(
-                    [0.50 + side * 0.24, signatureY],
-                    [0.50 + side * 0.33, signatureY - 0.035],
-                    width * 0.82
-                ));
-            } else if (signature === 1) {
-                strokes.push(path([
-                    [0.42, 0.56], [0.50, 0.49], [0.58, 0.56]
-                ], width * 0.78));
-            } else if (signature === 2) {
-                strokes.push(dot([0.50 + side * 0.27, signatureY], 0.010));
-                strokes.push(dot([0.50 + side * 0.27, signatureY + 0.055], 0.010));
-            } else {
-                strokes.push(line(
-                    [0.38, 0.52], [0.62, 0.49], width * 0.78
-                ));
-            }
-
-            // Delikatna, deterministyczna transformacja zachowuje ręczny charakter.
-            const angle = (-12 + rng() * 24) * Math.PI / 180;
-            const scaleX = 0.92 + rng() * 0.12;
-            const scaleY = 0.93 + rng() * 0.10;
-            const mirror = rng() > 0.72 ? -1 : 1;
-            const jitter = () => (rng() - 0.5) * 0.016;
+            // Transformacja całego glifu: mała rotacja, odbicie i minimalna
+            // asymetria zachowują wygląd ręcznego pisma.
+            const angle = (-8 + rng() * 16) * Math.PI / 180;
+            const scaleX = 1.00 + rng() * 0.10;
+            const scaleY = 1.00 + rng() * 0.10;
+            const mirror = rng() > 0.76 ? -1 : 1;
             const transformPoint = ([x, y]) => {
                 const dx = (x - 0.5) * scaleX * mirror;
                 const dy = (y - 0.5) * scaleY;
                 return [
-                    0.5 + dx * Math.cos(angle) - dy * Math.sin(angle) + jitter(),
-                    0.5 + dx * Math.sin(angle) + dy * Math.cos(angle) + jitter()
+                    0.5 + dx * Math.cos(angle) - dy * Math.sin(angle),
+                    0.5 + dx * Math.sin(angle) + dy * Math.cos(angle)
                 ];
+            };
+
+            // Dodanie punktów pośrednich tworzy subtelną nierówność długich linii.
+            const handDrawnPoints = points => {
+                const transformed = points.map(transformPoint);
+                if (transformed.length < 2) return transformed;
+                const result = [transformed[0]];
+                for (let i = 1; i < transformed.length; i++) {
+                    const a = transformed[i - 1];
+                    const b = transformed[i];
+                    const dx = b[0] - a[0];
+                    const dy = b[1] - a[1];
+                    const length = Math.hypot(dx, dy) || 1;
+                    const bend = (rng() - 0.5) * 0.010;
+                    result.push([
+                        (a[0] + b[0]) / 2 - dy / length * bend,
+                        (a[1] + b[1]) / 2 + dx / length * bend
+                    ]);
+                    result.push(b);
+                }
+                return result;
             };
 
             return strokes.map(stroke => {
                 if (stroke.points) {
-                    return { ...stroke, points: stroke.points.map(transformPoint) };
+                    return { ...stroke, points: handDrawnPoints(stroke.points) };
                 }
                 if (stroke.center) {
                     return { ...stroke, center: transformPoint(stroke.center) };
@@ -851,7 +820,7 @@
         function drawStroke(ctx, stroke, w, h, progress = 1) {
             const canvasScale = Math.min(w, h) / 220;
 
-            // Nowy format V2. Pojedyncza komenda jest jednym logicznym pociągnięciem.
+            // Format V3. Pojedyncza komenda jest jednym logicznym pociągnięciem.
             if (stroke.kind) {
                 ctx.strokeStyle = '#18352e';
                 ctx.fillStyle = '#18352e';
@@ -1535,7 +1504,7 @@
         // =====================================================
 
         function init() {
-            // Starsze zapisane znaki automatycznie otrzymują nowy styl V2.
+            // Starsze zapisane znaki automatycznie otrzymują nowy styl V3.
             upgradeDatabaseGlyphs();
 
             // Renderuj galerię z bazy
