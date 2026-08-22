@@ -1518,7 +1518,8 @@
             <p class="document-intro">
                 Wczytaj TXT, HTML, DOCX, ODT lub PDF albo wklej treść. Aplikacja zapisze ją jako
                 wielostronicowy dokument obrazkowy <strong>.glyphdoc</strong> z podglądami PNG oraz kopią
-                pliku źródłowego. Ten sam moduł odtworzy tekst i pozwoli pobrać dokładny oryginał.
+                pliku źródłowego. Po zakodowaniu wszystkie strony można również pobrać jako zwykły ZIP
+                albo gotowy do oglądania i drukowania PDF. Ten sam moduł odtworzy tekst i pozwoli pobrać dokładny oryginał.
                 Dopasowanie słów do bazy nie rozróżnia małych i wielkich liter. Format służy do zapisu
                 symbolicznego — nie jest szyfrowaniem. Jeżeli w tekście występują nowe słowa, program
                 automatycznie utworzy dla nich glify, zapisze indeksy rozpoznawania i dopiero potem zakoduje dokument.
@@ -1538,6 +1539,8 @@
                         <button class="btn btn-secondary" id="documentLoadSource">Wczytaj tekst</button>
                         <button class="btn btn-primary" id="documentEncode">Zakoduj dokument</button>
                         <button class="btn btn-success" id="documentDownload" disabled>Pobierz .GLYPHDOC</button>
+                        <button class="btn btn-secondary btn-zip" id="documentDownloadZip" disabled>Pobierz ZIP</button>
+                        <button class="btn btn-secondary" id="documentDownloadPdf" disabled>Pobierz PDF</button>
                         <button class="btn btn-secondary" id="documentDecode">Dekoduj dokument</button>
                         <button class="btn btn-secondary" id="documentDownloadText" disabled>Pobierz odkodowany TXT</button>
                         <button class="btn btn-secondary" id="documentDownloadOriginal" disabled>Pobierz oryginalny plik</button>
@@ -3150,6 +3153,8 @@
         const documentSourceFile = document.getElementById('documentSourceFile');
         const documentEncode = document.getElementById('documentEncode');
         const documentDownload = document.getElementById('documentDownload');
+        const documentDownloadZip = document.getElementById('documentDownloadZip');
+        const documentDownloadPdf = document.getElementById('documentDownloadPdf');
         const documentDecode = document.getElementById('documentDecode');
         const documentDecodeFile = document.getElementById('documentDecodeFile');
         const documentDownloadText = document.getElementById('documentDownloadText');
@@ -3682,6 +3687,18 @@
                     }
                     resolve(new Uint8Array(await blob.arrayBuffer()));
                 }, 'image/png');
+            });
+        }
+
+        function canvasToJpegBytes(canvas, quality = 0.9) {
+            return new Promise((resolve, reject) => {
+                canvas.toBlob(async blob => {
+                    if (!blob) {
+                        reject(new Error('Nie udało się utworzyć strony PDF.'));
+                        return;
+                    }
+                    resolve(new Uint8Array(await blob.arrayBuffer()));
+                }, 'image/jpeg', quality);
             });
         }
 
@@ -5847,11 +5864,101 @@
             setTimeout(() => URL.revokeObjectURL(url), 2000);
         }
 
-        function documentArchiveName(sourceName) {
+        function documentExportBaseName(sourceName) {
             const base = String(sourceName || 'dokument')
                 .replace(/\.[^.]+$/, '')
                 .trim() || 'dokument';
-            return `${sanitizeFileName(base)}-${formatLocalDate()}.glyphdoc`;
+            return `${sanitizeFileName(base)}-${formatLocalDate()}`;
+        }
+
+        function documentArchiveName(sourceName) {
+            return `${documentExportBaseName(sourceName)}.glyphdoc`;
+        }
+
+        /**
+         * Buduje samodzielny PDF A4 z zakodowanych stron JPEG. Każda strona
+         * zajmuje cały arkusz, więc cybernetyczna ramka, proporcje glifów i
+         * odstępy są identyczne jak w podglądach PNG zapisanych w GLYPHDOC.
+         */
+        function createDocumentPdfBlob(pageImages) {
+            if (!Array.isArray(pageImages) || pageImages.length === 0) {
+                throw new Error('Dokument nie zawiera stron do eksportu PDF.');
+            }
+
+            const encoder = new TextEncoder();
+            const encode = value => encoder.encode(value);
+            const objectParts = new Map();
+            const pageIds = [];
+            const pdfWidth = 595.28;
+            const pdfHeight = 841.89;
+
+            objectParts.set(1, [encode('<< /Type /Catalog /Pages 2 0 R >>')]);
+
+            pageImages.forEach((page, index) => {
+                const pageId = 3 + index * 3;
+                const imageId = pageId + 1;
+                const contentId = pageId + 2;
+                const imageName = `Im${index + 1}`;
+                pageIds.push(pageId);
+
+                objectParts.set(pageId, [encode(
+                    `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pdfWidth} ${pdfHeight}] ` +
+                    `/Resources << /XObject << /${imageName} ${imageId} 0 R >> >> ` +
+                    `/Contents ${contentId} 0 R >>`
+                )]);
+
+                const jpeg = page.bytes instanceof Uint8Array
+                    ? page.bytes
+                    : new Uint8Array(page.bytes);
+                objectParts.set(imageId, [
+                    encode(
+                        `<< /Type /XObject /Subtype /Image /Width ${page.width} /Height ${page.height} ` +
+                        `/ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpeg.length} >>\nstream\n`
+                    ),
+                    jpeg,
+                    encode('\nendstream'),
+                ]);
+
+                const content = encode(
+                    `q\n${pdfWidth} 0 0 ${pdfHeight} 0 0 cm\n/${imageName} Do\nQ\n`
+                );
+                objectParts.set(contentId, [
+                    encode(`<< /Length ${content.length} >>\nstream\n`),
+                    content,
+                    encode('endstream'),
+                ]);
+            });
+
+            objectParts.set(2, [encode(
+                `<< /Type /Pages /Kids [${pageIds.map(id => `${id} 0 R`).join(' ')}] /Count ${pageIds.length} >>`
+            )]);
+
+            const objectCount = 2 + pageImages.length * 3;
+            const parts = [];
+            const offsets = new Array(objectCount + 1).fill(0);
+            const header = encode('%PDF-1.4\n%GLYPH-OS\n');
+            parts.push(header);
+            let byteOffset = header.length;
+
+            for (let id = 1; id <= objectCount; id++) {
+                offsets[id] = byteOffset;
+                const prefix = encode(`${id} 0 obj\n`);
+                const suffix = encode('\nendobj\n');
+                const body = objectParts.get(id);
+                if (!body) throw new Error(`Brak obiektu PDF ${id}.`);
+                parts.push(prefix, ...body, suffix);
+                byteOffset += prefix.length + suffix.length + body.reduce((sum, part) => sum + part.length, 0);
+            }
+
+            const xrefOffset = byteOffset;
+            const xref = [
+                `xref\n0 ${objectCount + 1}\n`,
+                '0000000000 65535 f \n',
+                ...offsets.slice(1).map(offset => `${String(offset).padStart(10, '0')} 00000 n \n`),
+                `trailer\n<< /Size ${objectCount + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`,
+            ].join('');
+            parts.push(encode(xref));
+            return new Blob(parts, { type: 'application/pdf' });
         }
 
         function sanitizeOriginalFileName(value) {
@@ -5903,6 +6010,8 @@
             documentInput.disabled = true;
             documentLoadSource.disabled = true;
             documentDownload.disabled = true;
+            documentDownloadZip.disabled = true;
+            documentDownloadPdf.disabled = true;
             documentEncode.textContent = 'Kodowanie…';
             currentEncodedDocument = null;
             let autoGlyphResult = { added: 0, skipped: 0, invalid: 0, total: 0 };
@@ -5944,12 +6053,19 @@
                 const checksum = documentTextChecksum(text);
                 const files = [];
                 const pageManifest = [];
+                const pdfPages = [];
 
                 for (let index = 0; index < pages.length; index++) {
                     setDocumentStatus(`Tworzenie strony ${index + 1}/${pages.length}…`);
                     const canvas = createDocumentPageCanvas(pages[index], index + 1, pages.length);
                     if (index === 0) showDocumentPreview(canvas);
                     const rawPng = await canvasToPngBytes(canvas);
+                    const jpegBytes = await canvasToJpegBytes(canvas);
+                    pdfPages.push({
+                        bytes: jpegBytes,
+                        width: canvas.width,
+                        height: canvas.height,
+                    });
                     const fileName = `strona-${String(index + 1).padStart(3, '0')}.png`;
                     const payload = {
                         format: DOCUMENT_FORMAT,
@@ -6036,8 +6152,11 @@
                     blob,
                     fileName: documentArchiveName(model.sourceName),
                     manifest,
+                    pdfPages,
                 };
                 documentDownload.disabled = false;
+                documentDownloadZip.disabled = false;
+                documentDownloadPdf.disabled = false;
                 currentDecodedDocumentText = text;
                 documentDownloadText.disabled = false;
                 currentDecodedOriginalFile = currentDocumentOriginalFile;
@@ -6065,6 +6184,42 @@
             }
             triggerBlobDownload(currentEncodedDocument.blob, currentEncodedDocument.fileName);
             setDocumentStatus(`Pobrano ${currentEncodedDocument.fileName}.`, 'success');
+        }
+
+        function downloadEncodedDocumentZip() {
+            if (!currentEncodedDocument) {
+                setDocumentStatus('Najpierw zakoduj dokument.', 'warning');
+                return;
+            }
+            const fileName = `${documentExportBaseName(currentEncodedDocument.manifest.originalFileName)}.zip`;
+            triggerBlobDownload(currentEncodedDocument.blob, fileName);
+            setDocumentStatus(`Pobrano ZIP ze wszystkimi ${currentEncodedDocument.manifest.pages.length} stronami PNG i plikiem document.json.`, 'success');
+        }
+
+        async function downloadEncodedDocumentPdf() {
+            if (!currentEncodedDocument?.pdfPages?.length) {
+                setDocumentStatus('Najpierw zakoduj dokument.', 'warning');
+                return;
+            }
+
+            const originalLabel = documentDownloadPdf.textContent;
+            documentDownloadPdf.disabled = true;
+            documentDownloadPdf.textContent = 'Tworzenie PDF…';
+            try {
+                await new Promise(resolve => setTimeout(resolve, 0));
+                if (!currentEncodedDocument.pdfBlob) {
+                    currentEncodedDocument.pdfBlob = createDocumentPdfBlob(currentEncodedDocument.pdfPages);
+                }
+                const fileName = `${documentExportBaseName(currentEncodedDocument.manifest.originalFileName)}.pdf`;
+                triggerBlobDownload(currentEncodedDocument.pdfBlob, fileName);
+                setDocumentStatus(`Pobrano PDF: ${currentEncodedDocument.manifest.pages.length} ${currentEncodedDocument.manifest.pages.length === 1 ? 'strona' : 'stron'} A4 z glifami.`, 'success');
+            } catch (error) {
+                console.error('Błąd tworzenia PDF:', error);
+                setDocumentStatus(`Nie udało się utworzyć PDF: ${error.message}`, 'warning');
+            } finally {
+                documentDownloadPdf.textContent = originalLabel;
+                documentDownloadPdf.disabled = !currentEncodedDocument;
+            }
         }
 
         function normalizeExtractedDocumentText(text) {
@@ -6448,6 +6603,8 @@
                 currentDocumentOriginalFile = currentDecodedOriginalFile;
                 currentEncodedDocument = null;
                 documentDownload.disabled = true;
+                documentDownloadZip.disabled = true;
+                documentDownloadPdf.disabled = true;
                 documentDownloadText.disabled = false;
                 documentDownloadOriginal.disabled = !currentDecodedOriginalFile;
                 updateDocumentCounter();
@@ -6496,6 +6653,8 @@
             currentDocumentOriginalFile = null;
             currentDecodedOriginalFile = null;
             documentDownload.disabled = true;
+            documentDownloadZip.disabled = true;
+            documentDownloadPdf.disabled = true;
             documentDownloadText.disabled = true;
             documentDownloadOriginal.disabled = true;
             documentPreviewCanvas.hidden = true;
@@ -6627,6 +6786,8 @@
         });
         documentEncode.addEventListener('click', encodeDocumentFromInput);
         documentDownload.addEventListener('click', downloadEncodedDocument);
+        documentDownloadZip.addEventListener('click', downloadEncodedDocumentZip);
+        documentDownloadPdf.addEventListener('click', downloadEncodedDocumentPdf);
         documentDecode.addEventListener('click', () => documentDecodeFile.click());
         documentDecodeFile.addEventListener('change', (event) => {
             if (event.target.files && event.target.files[0]) {
