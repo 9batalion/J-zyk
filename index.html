@@ -1353,7 +1353,7 @@
         // Dzięki temu aktualizacja generatora nie zmienia samoczynnie znaków,
         // które użytkownik wcześniej wybrał i zapisał.
         const GLYPH_DATA_VERSION = 3;
-        const GENERATOR_VERSION = 6;
+        const GENERATOR_VERSION = 7;
         const GLYPH_TEMPLATE_COUNT = 32;
         const GLYPH_STRUCTURE_MODES = 5;
 
@@ -1371,7 +1371,7 @@
          * rozpoznawczy. Każdy znak ma przynajmniej pierścień, grupę kresek,
          * kropki albo mały akcent, więc nie może być samotną przypadkową linią.
          */
-        function generateGlyphStrokes(word, variantSeed = null) {
+        function generateGlyphStrokesV6(word, variantSeed = null) {
             const normalizedWord = word.trim().toLocaleLowerCase('pl-PL');
             const wordSeed = hashString(normalizedWord);
             const seed = variantSeed === null || variantSeed === undefined
@@ -1684,6 +1684,227 @@
                 }
                 return stroke;
             });
+        }
+
+        /**
+         * Generator V7. Materiał referencyjny jest zbudowany z geometrii
+         * ośmiokierunkowej: poziomów, pionów oraz przekątnych ±45°. Dlatego
+         * współrzędne powstają na kwadratowej siatce, a dozwolone przekształcenia
+         * to wyłącznie odbicie i obrót o wielokrotność 90°. Nie stosujemy
+         * swobodnej rotacji, nierównej skali osi ani wyginania odcinków.
+         */
+        function generateGlyphStrokes(word, variantSeed = null) {
+            const normalizedWord = word.trim().toLocaleLowerCase('pl-PL');
+            const wordSeed = hashString(normalizedWord);
+            const seed = variantSeed === null || variantSeed === undefined
+                ? wordSeed
+                : mixSeeds(wordSeed, variantSeed >>> 0);
+            const rng = mulberry32(seed);
+            const width = 2.28 + rng() * 0.30;
+            const strokes = [];
+
+            const line = (a, b, customWidth = width, role = 'core') => ({
+                kind: 'line', points: [a, b], width: customWidth, role
+            });
+            const path = (points, customWidth = width, role = 'core') => ({
+                kind: 'polyline', points, width: customWidth, role
+            });
+            const ring = (center, radius = 0.025, customWidth = width * 0.94) => ({
+                kind: 'circle', center, radius, width: customWidth, role: 'marker'
+            });
+            const dot = (center, radius = 0.0075) => ({
+                kind: 'dot', center, radius, role: 'marker'
+            });
+
+            // Wszystkie sąsiednie punkty każdego wzoru łączy odcinek o kierunku
+            // 0°, 45°, 90° albo 135°. Współrzędne zapisano na siatce całkowitej.
+            const templates = [
+                [[[-3,2],[-3,-2],[1,2],[-3,2]]],
+                [[[-2,2],[-2,-2],[2,2]]],
+                [[[-3,-2],[0,1],[3,-2]],[[0,1],[0,3]]],
+                [[[-3,2],[0,-1],[3,2]],[[0,-1],[0,-3]]],
+                [[[-3,-2],[3,-2]],[[0,-2],[0,3]]],
+                [[[-2,-3],[-2,3]],[[-2,0],[1,-3]],[[-2,0],[1,3]]],
+                [[[-2,-3],[-2,3]],[[-2,-2],[2,-2]],[[-2,0],[1,0]]],
+                [[[-2,-3],[-2,3]],[[-2,-2],[2,-2]],[[-2,1],[2,1]]],
+                [[[-2,3],[-2,-2],[2,2],[2,-3]]],
+                [[[-3,-2],[2,-2],[-2,2],[3,2]]],
+                [[[-3,-2],[0,-2],[-2,0],[2,0],[0,2],[3,2]]],
+                [[[0,-3],[3,0],[0,3],[-3,0],[0,-3]]],
+                [[[0,-3],[3,0],[0,3],[-3,0]]],
+                [[[-2,2],[-2,-2],[2,-2],[2,2]]],
+                [[[2,-3],[-2,-3],[-2,0],[1,0],[1,3],[-2,3]]],
+                [[[-3,-2],[0,1],[3,-2]]],
+                [[[-3,-3],[3,3]],[[3,-3],[-1,1],[-1,3]]],
+                [[[-2,3],[-2,-1],[1,-4],[1,3]]],
+                [[[0,3],[0,0],[-3,-3]],[[0,0],[3,-3]]],
+                [[[0,3],[0,-1]],[[0,-1],[-2,-3]],[[0,-1],[2,-3]]],
+                [[[-2,-3],[-2,3]],[[-2,0],[2,0],[2,3]]],
+                [[[-2,-3],[-2,2],[3,2]],[[0,2],[0,-1],[2,-3]]],
+                [[[-3,-2],[0,1],[-3,4]],[[0,1],[3,1]]],
+                [[[-3,0],[0,-3],[0,-1],[3,-1],[3,3]]],
+                [[[-3,-3],[0,0],[-3,3]],[[0,0],[3,-3]],[[0,0],[3,3]]],
+                [[[-3,-3],[2,-3],[-1,0],[2,3],[-2,3]]],
+                [[[-3,-2],[3,-2]],[[-2,-2],[-2,3]],[[2,-2],[2,1]]],
+                [[[-3,3],[-3,-2],[1,-2],[3,0],[3,3]]],
+                [[[-3,3],[3,-3]],[[-2,-3],[-2,2],[2,2]]],
+                [[[-3,-3],[0,-3],[0,0],[3,0],[3,3]]],
+                [[[0,-3],[0,3]],[[0,-2],[-2,0],[0,2]],[[0,-2],[2,0],[0,2]]],
+                [[[-2,3],[-2,-3],[2,-3],[0,-1],[2,1],[-2,1]]]
+            ];
+
+            const structureId = seed % (templates.length * GLYPH_STRUCTURE_MODES);
+            const templateIndex = structureId % templates.length;
+            const structureMode = Math.floor(structureId / templates.length);
+            const gridPaths = templates[templateIndex].map(points => points.map(point => [...point]));
+
+            const directions = [
+                [1,0], [1,1], [0,1], [-1,1],
+                [-1,0], [-1,-1], [0,-1], [1,-1]
+            ];
+            const allGridPoints = gridPaths.flat();
+            const uniqueAnchors = [];
+            const anchorKeys = new Set();
+            allGridPoints.forEach(point => {
+                const key = `${point[0]},${point[1]}`;
+                if (!anchorKeys.has(key)) {
+                    anchorKeys.add(key);
+                    uniqueAnchors.push(point);
+                }
+            });
+
+            const anchor = uniqueAnchors[(seed >>> 14) % uniqueAnchors.length];
+            const outwardDirectionIndex = (() => {
+                let bestIndex = 0;
+                let bestScore = -Infinity;
+                directions.forEach(([dx, dy], index) => {
+                    const magnitude = Math.hypot(dx, dy);
+                    const score = (anchor[0] * dx + anchor[1] * dy) / magnitude;
+                    if (score > bestScore) {
+                        bestScore = score;
+                        bestIndex = index;
+                    }
+                });
+                return bestIndex;
+            })();
+            const outward = directions[outwardDirectionIndex];
+
+            // Pięć rodzin konstrukcyjnych. Każde rozszerzenie także porusza się
+            // wyłącznie po jednym z ośmiu dozwolonych kierunków.
+            if (structureMode === 1) {
+                gridPaths.push([
+                    anchor,
+                    [anchor[0] + outward[0] * 1.35, anchor[1] + outward[1] * 1.35]
+                ]);
+            } else if (structureMode === 2) {
+                const left = directions[(outwardDirectionIndex + 1) % directions.length];
+                const right = directions[(outwardDirectionIndex + directions.length - 1) % directions.length];
+                gridPaths.push([
+                    [anchor[0] + left[0] * 1.25, anchor[1] + left[1] * 1.25],
+                    anchor,
+                    [anchor[0] + right[0] * 1.25, anchor[1] + right[1] * 1.25]
+                ]);
+            } else if (structureMode === 3) {
+                const perpendicular = directions[(outwardDirectionIndex + 2) % directions.length];
+                const corner = [
+                    anchor[0] + outward[0] * 1.30,
+                    anchor[1] + outward[1] * 1.30
+                ];
+                gridPaths.push([
+                    anchor,
+                    corner,
+                    [corner[0] + perpendicular[0] * 0.90, corner[1] + perpendicular[1] * 0.90]
+                ]);
+            } else if (structureMode === 4) {
+                const perpendicular = directions[(outwardDirectionIndex + 2) % directions.length];
+                gridPaths.push([
+                    [anchor[0] - perpendicular[0] * 1.15, anchor[1] - perpendicular[1] * 1.15],
+                    anchor,
+                    [anchor[0] + perpendicular[0] * 1.15, anchor[1] + perpendicular[1] * 1.15]
+                ]);
+            }
+
+            // Grupa dihedralna kwadratu zachowuje wszystkie kąty. Pozwala na
+            // osiem orientacji bez wprowadzania przypadkowych nachyleń.
+            const quarterTurns = (seed >>> 21) & 3;
+            const mirror = ((seed >>> 23) & 1) === 1;
+            const gridStep = 0.064 + ((seed >>> 24) & 3) * 0.002;
+            const transformGridPoint = ([sourceX, sourceY]) => {
+                let x = mirror ? -sourceX : sourceX;
+                let y = sourceY;
+                for (let i = 0; i < quarterTurns; i++) {
+                    [x, y] = [-y, x];
+                }
+                return [0.5 + x * gridStep, 0.5 + y * gridStep];
+            };
+
+            gridPaths.forEach(points => {
+                strokes.push(path(points.map(transformGridPoint)));
+            });
+
+            const transformedAnchors = uniqueAnchors.map(transformGridPoint);
+            const ringIndex = (seed >>> 10) % transformedAnchors.length;
+            const markerType = (seed >>> 27) & 3;
+
+            if (markerType === 0) {
+                strokes.push(ring(transformedAnchors[ringIndex], 0.023 + rng() * 0.005));
+            } else {
+                // Akcent umieszczony obok szkieletu, podobnie jak grupy kresek
+                // i kropek na fotografii referencyjnej.
+                const sideIndex = (seed >>> 12) & 3;
+                const sidePositions = [
+                    [0.245, 0.46], [0.755, 0.54], [0.46, 0.245], [0.54, 0.755]
+                ];
+                const [markerX, markerY] = sidePositions[sideIndex];
+                const accentDirectionIndex = ((seed >>> 17) & 3) * 2 + (((seed >>> 19) & 1) ? 1 : 0);
+                const [rawUx, rawUy] = directions[accentDirectionIndex];
+                const directionLength = Math.hypot(rawUx, rawUy);
+                const ux = rawUx / directionLength;
+                const uy = rawUy / directionLength;
+                const nx = -uy;
+                const ny = ux;
+
+                if (markerType === 1) {
+                    const barCount = 2 + ((seed >>> 8) % 3);
+                    const barLength = 0.066 + ((seed >>> 18) & 1) * 0.015;
+                    const barGap = 0.018;
+                    for (let i = 0; i < barCount; i++) {
+                        const offset = (i - (barCount - 1) / 2) * barGap;
+                        const cx = markerX + nx * offset;
+                        const cy = markerY + ny * offset;
+                        strokes.push(line(
+                            [cx - ux * barLength / 2, cy - uy * barLength / 2],
+                            [cx + ux * barLength / 2, cy + uy * barLength / 2],
+                            width * 0.82,
+                            'marker'
+                        ));
+                    }
+                } else if (markerType === 2) {
+                    const dotCount = 2 + ((seed >>> 8) % 3);
+                    for (let i = 0; i < dotCount; i++) {
+                        const offset = (i - (dotCount - 1) / 2) * 0.023;
+                        strokes.push(dot([
+                            markerX + ux * offset,
+                            markerY + uy * offset
+                        ]));
+                    }
+                } else {
+                    const arm = 0.045;
+                    strokes.push(path([
+                        [markerX - ux * arm, markerY - uy * arm],
+                        [markerX, markerY],
+                        [markerX + nx * arm, markerY + ny * arm]
+                    ], width * 0.82, 'marker'));
+                }
+            }
+
+            // Niekiedy pierścień i akcent występują razem. Pierścień zawsze
+            // siedzi dokładnie na węźle lub zakończeniu szkieletu.
+            if (markerType !== 0 && ((seed >>> 7) & 7) < 2) {
+                strokes.push(ring(transformedAnchors[ringIndex], 0.021 + rng() * 0.004));
+            }
+
+            return strokes;
         }
 
         // =====================================================
