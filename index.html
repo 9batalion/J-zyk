@@ -626,13 +626,27 @@
          * Generuje dane znaku (listę kresek) na podstawie słowa.
          * Kreski są definiowane w znormalizowanych współrzędnych [0,1].
          */
-        const GLYPH_VERSION = 3;
-        const GENERATOR_VERSION = 4;
+        // Wersja formatu danych jest niezależna od wersji algorytmu.
+        // Dzięki temu aktualizacja generatora nie zmienia samoczynnie znaków,
+        // które użytkownik wcześniej wybrał i zapisał.
+        const GLYPH_DATA_VERSION = 3;
+        const GENERATOR_VERSION = 5;
+        const GLYPH_TEMPLATE_COUNT = 32;
+        const GLYPH_STRUCTURE_MODES = 5;
+
+        function getGlyphStructureId(word, variantSeed = null) {
+            const normalizedWord = word.trim().toLocaleLowerCase('pl-PL');
+            const wordSeed = hashString(normalizedWord);
+            const seed = variantSeed === null || variantSeed === undefined
+                ? wordSeed
+                : mixSeeds(wordSeed, variantSeed >>> 0);
+            return seed % (GLYPH_TEMPLATE_COUNT * GLYPH_STRUCTURE_MODES);
+        }
 
         /**
-         * Generator V3: każdy znak ma zwarty szkielet, a ozdobniki pojawiają
-         * się tylko czasami. Dzięki temu glify przypominają pojedyncze znaki
-         * z fotografii zamiast luźnego zbioru kresek.
+         * Generator V5: każdy znak ma zwarty szkielet, rozpoznawalną rodzinę
+         * konstrukcyjną i zbalansowane ozdobniki. Dzięki temu glify przypominają
+         * pojedyncze znaki z fotografii zamiast luźnego zbioru kresek.
          */
         function generateGlyphStrokes(word, variantSeed = null) {
             const normalizedWord = word.trim().toLocaleLowerCase('pl-PL');
@@ -642,7 +656,7 @@
                 : mixSeeds(wordSeed, variantSeed >>> 0);
             const rng = mulberry32(seed);
             const strokes = [];
-            const width = 2.05 + rng() * 0.38;
+            const width = 2.12 + rng() * 0.42;
 
             const line = (a, b, customWidth = width) => ({
                 kind: 'line', points: [a, b], width: customWidth
@@ -706,26 +720,78 @@
                 { paths: [[[0.33,0.30],[0.47,0.48],[0.33,0.67]], [[0.47,0.48],[0.65,0.48]], [[0.65,0.48],[0.69,0.34]]], anchors: [[0.33,0.30],[0.33,0.67],[0.69,0.34]], bars: [0.64,0.62,'diagDown'], branches: [[0.47,0.48,0.04,0.14]] }
             ];
 
-            const template = templates[seed % templates.length];
+            const structureId = seed % (templates.length * GLYPH_STRUCTURE_MODES);
+            const templateIndex = structureId % templates.length;
+            const structureMode = Math.floor(structureId / templates.length);
+            const template = templates[templateIndex];
             template.paths.forEach(points => strokes.push(path(points)));
+
+            // Pięć wariantów konstrukcyjnych dla każdego z 32 szkieletów daje
+            // 160 faktycznie różnych rodzin, a nie tylko obroty tego samego wzoru.
+            // Każdy dodatek łączy się ze szkieletem w istniejącym punkcie.
+            if (structureMode > 0) {
+                const anchorIndex = (seed >>> 19) % template.anchors.length;
+                const anchor = template.anchors[anchorIndex];
+                const dx = anchor[0] - 0.5;
+                const dy = anchor[1] - 0.5;
+                const length = Math.hypot(dx, dy) || 1;
+                const ux = dx / length;
+                const uy = dy / length;
+                const nx = -uy;
+                const ny = ux;
+                const reach = 0.075 + rng() * 0.035;
+
+                if (structureMode === 1) {
+                    // Przedłużone zakończenie.
+                    strokes.push(line(anchor, [
+                        anchor[0] + ux * reach,
+                        anchor[1] + uy * reach
+                    ], width * 0.96));
+                } else if (structureMode === 2) {
+                    // Krótki, połączony rozwidlony grot.
+                    strokes.push(path([
+                        [anchor[0] + ux * reach + nx * reach * 0.55,
+                         anchor[1] + uy * reach + ny * reach * 0.55],
+                        anchor,
+                        [anchor[0] + ux * reach - nx * reach * 0.55,
+                         anchor[1] + uy * reach - ny * reach * 0.55]
+                    ], width * 0.94));
+                } else if (structureMode === 3) {
+                    // Zakrzywiony hak wychodzący z końca szkieletu.
+                    strokes.push(path(curvePoints(
+                        anchor,
+                        [anchor[0] + ux * reach + nx * reach * 0.75,
+                         anchor[1] + uy * reach + ny * reach * 0.75],
+                        [anchor[0] + nx * reach * 1.15,
+                         anchor[1] + ny * reach * 1.15],
+                        5
+                    ), width * 0.94));
+                } else {
+                    // Dodatkowy most tworzy trójkątną lub romboidalną komórkę.
+                    const other = template.anchors[(anchorIndex + 1 + ((seed >>> 23) % (template.anchors.length - 1))) % template.anchors.length];
+                    const mx = (anchor[0] + other[0]) / 2 + nx * (0.045 + rng() * 0.025);
+                    const my = (anchor[1] + other[1]) / 2 + ny * (0.045 + rng() * 0.025);
+                    strokes.push(path([anchor, [mx, my], other], width * 0.92));
+                }
+            }
 
             // Pierścienie są charakterystyczne, ale na wzorze nie występują
             // przy każdym znaku.
             const ringRoll = ((seed >>> 8) & 255) / 255;
             const ringIndex = (seed >>> 16) % template.anchors.length;
-            if (ringRoll < 0.60) {
+            if (ringRoll < 0.44) {
                 strokes.push(ring(template.anchors[ringIndex], 0.023 + rng() * 0.008));
             }
 
             // Drugie zakończenie z pierścieniem jest rzadkie.
-            if (((seed >>> 11) & 31) < 3) {
+            if (((seed >>> 11) & 31) < 2) {
                 const secondIndex = (ringIndex + 1 + ((seed >>> 21) % (template.anchors.length - 1))) % template.anchors.length;
                 strokes.push(ring(template.anchors[secondIndex], 0.018 + rng() * 0.005));
             }
 
             // Krótkie odgałęzienie zawsze wychodzi ze szkieletu, więc nie pływa
             // samotnie po płótnie jak w poprzedniej wersji.
-            if (((seed >>> 5) & 15) < 7) {
+            if (((seed >>> 5) & 15) < 4) {
                 const branch = template.branches[(seed >>> 13) % template.branches.length];
                 const [x, y, dx, dy] = branch;
                 const branchScale = 0.78 + rng() * 0.28;
@@ -735,7 +801,7 @@
             // Równoległe kreski występują tylko w części znaków i pozostają
             // blisko głównej figury.
             const barsRoll = ((seed >>> 17) & 127) / 127;
-            if (barsRoll < 0.38) {
+            if (barsRoll < 0.42) {
                 const barCount = 2 + ((seed >>> 24) % 3);
                 const [barX, barY, baseOrientation] = template.bars;
                 const orientationAngles = {
@@ -762,7 +828,7 @@
                         width * 0.82
                     ));
                 }
-            } else if (barsRoll > 0.86) {
+            } else if (barsRoll < 0.58) {
                 // Łańcuch dwóch–czterech punktów odpowiada kropkowanym
                 // zakończeniom widocznym na materiale referencyjnym.
                 const [x, y, orientation] = template.bars;
@@ -782,6 +848,26 @@
                         y + Math.sin(dotAngle) * offset
                     ]));
                 }
+            } else if (barsRoll > 0.91) {
+                // Mały znak kątowy uzupełnia repertuar kropek i kresek.
+                const [x, y, orientation] = template.bars;
+                const accentAngles = {
+                    horizontal: 0,
+                    vertical: Math.PI / 2,
+                    diagUp: -Math.PI / 4,
+                    diagDown: Math.PI / 4
+                };
+                const accentAngle = accentAngles[orientation] ?? 0;
+                const ux = Math.cos(accentAngle);
+                const uy = Math.sin(accentAngle);
+                const nx = -uy;
+                const ny = ux;
+                const arm = 0.040 + rng() * 0.014;
+                strokes.push(path([
+                    [x - ux * arm, y - uy * arm],
+                    [x, y],
+                    [x + nx * arm, y + ny * arm]
+                ], width * 0.80));
             }
 
             // Transformacja całego glifu: mała rotacja, odbicie i minimalna
@@ -856,6 +942,25 @@
             }
         }
 
+        /**
+         * Lekkie tło eksportowe o ograniczonej liczbie kolorów.
+         * Wygląda jak papier, ale daje wielokrotnie mniejszy plik PNG niż
+         * pełny gradient, co ma duże znaczenie przy eksporcie ZIP na iPhonie.
+         */
+        function paintExportPaper(ctx, w, h) {
+            ctx.clearRect(0, 0, w, h);
+            ctx.fillStyle = '#eeeae1';
+            ctx.fillRect(0, 0, w, h);
+
+            const grainCount = Math.min(96, Math.max(12, Math.round((w * h) / 3600)));
+            ctx.fillStyle = 'rgba(57, 69, 58, 0.035)';
+            for (let i = 0; i < grainCount; i++) {
+                const x = ((i * 73.371 + 19.7) % 1) * w;
+                const y = ((i * 41.913 + 7.3) % 1) * h;
+                ctx.fillRect(x, y, Math.max(1, w / 520), Math.max(1, h / 520));
+            }
+        }
+
         function drawPartialPolyline(ctx, points, progress, w, h) {
             if (!points || points.length < 2 || progress <= 0) return;
             const pixels = points.map(([x, y]) => [x * w, y * h]);
@@ -898,7 +1003,7 @@
         function drawStroke(ctx, stroke, w, h, progress = 1) {
             const canvasScale = Math.min(w, h) / 220;
 
-            // Format V3. Pojedyncza komenda jest jednym logicznym pociągnięciem.
+            // Aktualny format. Pojedyncza komenda jest jednym logicznym pociągnięciem.
             if (stroke.kind) {
                 ctx.strokeStyle = '#18352e';
                 ctx.fillStyle = '#18352e';
@@ -1108,6 +1213,16 @@
             requestAnimationFrame(animateFrame);
         }
 
+        function createExportCanvas(strokes, size = 520) {
+            const canvas = document.createElement('canvas');
+            canvas.width = size;
+            canvas.height = size;
+            const ctx = canvas.getContext('2d');
+            paintExportPaper(ctx, size, size);
+            strokes.forEach(stroke => drawStroke(ctx, stroke, size, size, 1));
+            return canvas;
+        }
+
         // =====================================================
         // ==================== DATABASE (localStorage) ====================
         // =====================================================
@@ -1150,7 +1265,7 @@
                 }
                 existing.word = word.trim();
                 existing.glyphData = glyphData;
-                existing.glyphVersion = GLYPH_VERSION;
+                existing.glyphVersion = GLYPH_DATA_VERSION;
                 existing.generatorVersion = GENERATOR_VERSION;
                 existing.variantSeed = variantSeed;
                 existing.timestamp = new Date().toISOString();
@@ -1160,7 +1275,7 @@
             const entry = {
                 word: word.trim(),
                 glyphData,
-                glyphVersion: GLYPH_VERSION,
+                glyphVersion: GLYPH_DATA_VERSION,
                 generatorVersion: GENERATOR_VERSION,
                 variantSeed,
                 timestamp: new Date().toISOString(),
@@ -1217,6 +1332,7 @@
         let recognitionCurrentWord = null;
         let variantNonce = 0;
         const recentVariantSignatures = new Map();
+        const recentVariantStructures = new Map();
 
         function nextVariantSeed(word) {
             variantNonce = (variantNonce + 1) >>> 0;
@@ -1240,15 +1356,26 @@
         function generateUniqueGlyphVariant(word) {
             const key = word.trim().toLocaleLowerCase('pl-PL');
             const recent = recentVariantSignatures.get(key) || [];
+            const recentStructures = recentVariantStructures.get(key) || [];
 
-            for (let attempt = 0; attempt < 16; attempt++) {
+            for (let attempt = 0; attempt < 40; attempt++) {
                 const variantSeed = nextVariantSeed(key);
+                const structureId = getGlyphStructureId(key, variantSeed);
+
+                // Nie pokazuj ponownie tej samej rodziny konstrukcyjnej wśród
+                // ostatnich wariantów danego słowa. To eliminuje sytuację, w
+                // której zmienia się tylko kąt lub pojedyncza kropka.
+                if (recentStructures.includes(structureId)) continue;
+
                 const strokes = generateGlyphStrokes(key, variantSeed);
                 const signature = JSON.stringify(strokes);
                 if (!recent.includes(signature)) {
                     recent.push(signature);
-                    if (recent.length > 40) recent.shift();
+                    recentStructures.push(structureId);
+                    if (recent.length > 48) recent.shift();
+                    if (recentStructures.length > 48) recentStructures.shift();
                     recentVariantSignatures.set(key, recent);
+                    recentVariantStructures.set(key, recentStructures);
                     return { strokes, variantSeed };
                 }
             }
@@ -1256,24 +1383,44 @@
             // Praktycznie nieosiągalny bezpiecznik: licznik nadal gwarantuje
             // zmianę materiału wejściowego przy kolejnym kliknięciu.
             const variantSeed = nextVariantSeed(`${key}-${variantNonce}`);
-            return { strokes: generateGlyphStrokes(key, variantSeed), variantSeed };
+            const strokes = generateGlyphStrokes(key, variantSeed);
+            const structureId = getGlyphStructureId(key, variantSeed);
+            recent.push(JSON.stringify(strokes));
+            recentStructures.push(structureId);
+            if (recent.length > 48) recent.shift();
+            if (recentStructures.length > 48) recentStructures.shift();
+            recentVariantSignatures.set(key, recent);
+            recentVariantStructures.set(key, recentStructures);
+            return { strokes, variantSeed };
         }
 
         function upgradeDatabaseGlyphs() {
             let changed = false;
             db.words.forEach(entry => {
-                if (entry.glyphVersion !== GLYPH_VERSION || !Array.isArray(entry.glyphData)) {
+                // Zachowaj każdy wcześniej wybrany znak, jeżeli jego kreski są
+                // zapisane. Nowy generator obowiązuje dopiero przy kolejnym
+                // kliknięciu „Generuj”, więc aktualizacja nie podmienia bazy.
+                if (!Array.isArray(entry.glyphData) || entry.glyphData.length === 0) {
                     entry.glyphData = generateGlyphStrokes(entry.word, entry.variantSeed);
-                    entry.glyphVersion = GLYPH_VERSION;
+                    entry.glyphVersion = GLYPH_DATA_VERSION;
                     entry.generatorVersion = GENERATOR_VERSION;
                     changed = true;
+                } else {
+                    if (!Number.isInteger(entry.glyphVersion)) {
+                        entry.glyphVersion = GLYPH_DATA_VERSION;
+                        changed = true;
+                    }
+                    if (!Number.isInteger(entry.generatorVersion)) {
+                        entry.generatorVersion = 1;
+                        changed = true;
+                    }
                 }
             });
             if (changed) saveDatabase(db);
         }
 
         function getEntryGlyph(entry) {
-            return entry.glyphData && entry.glyphVersion === GLYPH_VERSION
+            return Array.isArray(entry.glyphData) && entry.glyphData.length > 0
                 ? entry.glyphData
                 : generateGlyphStrokes(entry.word, entry.variantSeed);
         }
@@ -1487,11 +1634,10 @@
                 return;
             }
 
-            // Utrwal pełny znak bez stanu pośredniego animacji.
-            renderGlyph(mainCanvas, currentGlyphStrokes, false, 0);
             const safeName = sanitizeFileName(currentGlyphWord);
+            const exportCanvas = createExportCanvas(currentGlyphStrokes);
 
-            mainCanvas.toBlob(blob => {
+            exportCanvas.toBlob(blob => {
                 if (!blob) {
                     setStatus('Nie udało się przygotować pliku PNG.', 'warning');
                     return;
@@ -1545,6 +1691,13 @@
             };
         }
 
+        function formatLocalDate(date = new Date()) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+
         /** Tworzy prosty ZIP bez kompresji; pliki PNG są już skompresowane. */
         function createZipBlob(files) {
             const encoder = new TextEncoder();
@@ -1561,7 +1714,10 @@
                     : new Uint8Array(file.data);
                 const crc = calculateCrc32(data);
 
-                const local = new Uint8Array(30 + nameBytes.length + data.length);
+                // Nagłówek i dane pozostają osobnymi częściami Bloba. Poprzednia
+                // wersja kopiowała każdy PNG do kolejnej tablicy, podwajając
+                // chwilowe zużycie pamięci podczas dużego eksportu.
+                const local = new Uint8Array(30 + nameBytes.length);
                 const localView = new DataView(local.buffer);
                 localView.setUint32(0, 0x04034b50, true);
                 localView.setUint16(4, 20, true);
@@ -1575,8 +1731,7 @@
                 localView.setUint16(26, nameBytes.length, true);
                 localView.setUint16(28, 0, true);
                 local.set(nameBytes, 30);
-                local.set(data, 30 + nameBytes.length);
-                localParts.push(local);
+                localParts.push(local, data);
 
                 const central = new Uint8Array(46 + nameBytes.length);
                 const centralView = new DataView(central.buffer);
@@ -1600,7 +1755,7 @@
                 central.set(nameBytes, 46);
                 centralParts.push(central);
                 centralSize += central.length;
-                localOffset += local.length;
+                localOffset += local.length + data.length;
             });
 
             const end = new Uint8Array(22);
@@ -1646,27 +1801,33 @@
                     downloadAllBtn.textContent = `⏳ Przygotowywanie ${i + 1}/${db.words.length}`;
                     setStatus(`Tworzenie PNG ${i + 1} z ${db.words.length}…`, 'info');
 
-                    const canvas = document.createElement('canvas');
-                    canvas.width = 520;
-                    canvas.height = 520;
-                    renderGlyph(canvas, getEntryGlyph(entry), false, 0);
+                    const canvas = createExportCanvas(getEntryGlyph(entry));
 
                     const index = String(i + 1).padStart(3, '0');
                     const fileName = `${index}-${sanitizeFileName(entry.word)}.png`;
                     files.push({ name: fileName, data: await canvasToPngBytes(canvas) });
-                    manifest.push({ file: fileName, word: entry.word });
+                    manifest.push({
+                        file: fileName,
+                        word: entry.word,
+                        generatorVersion: entry.generatorVersion ?? null
+                    });
                 }
 
                 files.push({
                     name: 'slownik.json',
-                    data: new TextEncoder().encode(JSON.stringify({ words: manifest }, null, 2))
+                    data: new TextEncoder().encode(JSON.stringify({
+                        formatVersion: 2,
+                        exportedAt: new Date().toISOString(),
+                        image: { width: 520, height: 520, background: '#eeeae1' },
+                        words: manifest
+                    }, null, 2))
                 });
 
                 const zip = createZipBlob(files);
                 const url = URL.createObjectURL(zip);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = `znaki-${new Date().toISOString().slice(0, 10)}.zip`;
+                a.download = `znaki-${formatLocalDate()}.zip`;
                 document.body.appendChild(a);
                 a.click();
                 a.remove();
@@ -1712,15 +1873,17 @@
                         let addedCount = 0;
                         data.words.forEach(entry => {
                             if (entry.word && !findWord(db, entry.word)) {
-                                const hasCompatibleGlyph = entry.glyphVersion === GLYPH_VERSION && entry.glyphData;
+                                const hasCompatibleGlyph = Array.isArray(entry.glyphData) && entry.glyphData.length > 0;
                                 db.words.push({
                                     word: entry.word,
                                     glyphData: hasCompatibleGlyph
                                         ? entry.glyphData
                                         : generateGlyphStrokes(entry.word, entry.variantSeed),
-                                    glyphVersion: GLYPH_VERSION,
+                                    glyphVersion: hasCompatibleGlyph
+                                        ? (entry.glyphVersion ?? GLYPH_DATA_VERSION)
+                                        : GLYPH_DATA_VERSION,
                                     generatorVersion: hasCompatibleGlyph
-                                        ? (entry.generatorVersion ?? 3)
+                                        ? (entry.generatorVersion ?? 1)
                                         : GENERATOR_VERSION,
                                     variantSeed: entry.variantSeed ?? null,
                                     timestamp: entry.timestamp || new Date().toISOString(),
@@ -1865,7 +2028,7 @@
         // =====================================================
 
         function init() {
-            // Starsze zapisane znaki automatycznie otrzymują nowy styl V3.
+            // Uzupełnij tylko brakujące dane; wybrane wcześniej znaki pozostają bez zmian.
             upgradeDatabaseGlyphs();
 
             // Renderuj galerię z bazy
