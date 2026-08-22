@@ -13,6 +13,7 @@
     <link rel="apple-touch-icon" href="./icons/icon-192.png">
     <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png">
     <link rel="stylesheet" href="./bulk-dictionary.css">
+    <link rel="stylesheet" href="./learning-engine.css">
     <title>Glyph OS // Język Obrazowy</title>
     <style>
         :root {
@@ -1552,22 +1553,121 @@
             </div>
         </div>
 
-        <!-- RECOGNITION MODE -->
-        <div class="panel recognition-section">
-            <h2><span class="icon">05</span> Tryb Rozpoznawania</h2>
-            <p style="color:var(--text-muted); margin-bottom:16px; font-size:0.95rem;">
-                Zobacz znak i odgadnij, jakie słowo reprezentuje. Kliknij <strong>Losuj znak</strong>, aby rozpocząć.
+        <!-- LEARNING ENGINE -->
+        <div class="panel learning-section" id="learningModule">
+            <h2><span class="icon">05</span> Akademia Glifów</h2>
+            <p class="learning-intro">
+                Osobny silnik nauki znaków z inteligentnymi powtórkami. Najpierw otrzymasz zaległe
+                glify, potem nowe. Każda odpowiedź przesuwa znak na właściwy termin — od kilku minut
+                do wielu miesięcy. Postęp jest zapisywany lokalnie i nie rozróżnia wielkości liter.
             </p>
-            <div class="recognition-box">
-                <div class="recognition-canvas-frame">
-                    <canvas id="recognitionCanvas" width="120" height="120"></canvas>
+
+            <div class="learning-dashboard" aria-label="Statystyki nauki">
+                <div class="learning-stat"><span class="learning-stat-value" id="learningDue">0</span><span class="learning-stat-label">Do powtórki</span></div>
+                <div class="learning-stat"><span class="learning-stat-value" id="learningNew">0</span><span class="learning-stat-label">Nieuczone</span></div>
+                <div class="learning-stat"><span class="learning-stat-value" id="learningActive">0</span><span class="learning-stat-label">W nauce</span></div>
+                <div class="learning-stat"><span class="learning-stat-value" id="learningMastered">0</span><span class="learning-stat-label">Opanowane</span></div>
+                <div class="learning-stat"><span class="learning-stat-value" id="learningAccuracy">—</span><span class="learning-stat-label">Skuteczność</span></div>
+                <div class="learning-stat"><span class="learning-stat-value" id="learningStreak">0</span><span class="learning-stat-label">Dni serii</span></div>
+            </div>
+
+            <div class="learning-daily">
+                <div class="learning-daily-head"><span>Dzisiejszy cel</span><span id="learningDailyText">0 / 20 powtórek</span></div>
+                <progress id="learningDailyProgress" max="20" value="0"></progress>
+            </div>
+
+            <div class="learning-setup">
+                <div class="learning-field">
+                    <label for="learningMode">Rodzaj ćwiczeń</label>
+                    <select id="learningMode">
+                        <option value="mixed">Tryb mieszany</option>
+                        <option value="symbol-to-word">Znak → słowo</option>
+                        <option value="word-to-symbol">Słowo → znak</option>
+                    </select>
                 </div>
-                <div class="recognition-input-area">
-                    <input type="text" id="recognitionInput" placeholder="Twoje odgadnięcie..." autocomplete="off" />
-                    <button class="btn btn-primary" id="recognitionCheck">Sprawdź</button>
-                    <button class="btn btn-secondary" id="recognitionRandom">Losuj znak</button>
-                    <div class="recognition-feedback" id="recognitionFeedback"></div>
+                <div class="learning-field">
+                    <label for="learningSessionSize">Długość sesji</label>
+                    <select id="learningSessionSize">
+                        <option value="10">10 kart</option>
+                        <option value="20" selected>20 kart</option>
+                        <option value="30">30 kart</option>
+                        <option value="50">50 kart</option>
+                    </select>
                 </div>
+                <div class="learning-field">
+                    <label for="learningNewLimit">Nowe znaki w sesji</label>
+                    <select id="learningNewLimit">
+                        <option value="5">Maks. 5</option>
+                        <option value="10" selected>Maks. 10</option>
+                        <option value="20">Maks. 20</option>
+                    </select>
+                </div>
+                <div class="learning-field">
+                    <label for="learningDailyGoal">Cel dzienny</label>
+                    <select id="learningDailyGoal">
+                        <option value="10">10 powtórek</option>
+                        <option value="20" selected>20 powtórek</option>
+                        <option value="30">30 powtórek</option>
+                        <option value="50">50 powtórek</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="learning-launch">
+                <button class="btn btn-primary" id="learningStart">Rozpocznij naukę</button>
+                <button class="btn btn-secondary" id="learningReviewsOnly">Tylko powtórki</button>
+            </div>
+            <div class="learning-status" id="learningStatus" aria-live="polite">Uruchamiam silnik nauki…</div>
+
+            <div class="learning-stage" id="learningStage" hidden>
+                <div class="learning-session-head"><span id="learningSessionLabel">Sesja nauki</span><span id="learningSessionCounter">0 / 0</span></div>
+                <progress class="learning-session-progress" id="learningSessionProgress" max="1" value="0"></progress>
+
+                <div class="learning-question">
+                    <span class="learning-card-state" id="learningCardState">Nowy znak</span>
+                    <div class="learning-prompt" id="learningPrompt">Co oznacza ten znak?</div>
+                    <div class="learning-canvas-frame" id="learningCanvasFrame">
+                        <canvas id="learningCanvas" width="300" height="300"></canvas>
+                    </div>
+                    <div class="learning-question-word" id="learningQuestionWord" hidden></div>
+                </div>
+
+                <div class="learning-answer-row" id="learningAnswerRow">
+                    <input class="learning-answer-input" type="text" id="learningAnswer" placeholder="Wpisz słowo…" autocomplete="off" autocapitalize="none" spellcheck="false">
+                    <button class="btn btn-primary" id="learningCheck">Sprawdź</button>
+                </div>
+                <div class="learning-choices" id="learningChoices" hidden></div>
+
+                <div class="learning-actions">
+                    <button class="btn btn-secondary" id="learningReveal">Pokaż odpowiedź</button>
+                    <button class="btn btn-secondary" id="learningEnd">Zakończ sesję</button>
+                </div>
+                <div class="learning-feedback" id="learningFeedback" aria-live="polite">Odpowiedz bez pośpiechu — liczy się trwałe zapamiętanie.</div>
+
+                <div class="learning-rating" id="learningRating" hidden>
+                    <button class="btn btn-secondary" data-grade="0">Nie pamiętam</button>
+                    <button class="btn btn-secondary" data-grade="1">Trudne</button>
+                    <button class="btn btn-secondary" data-grade="2">Dobrze</button>
+                    <button class="btn btn-secondary" data-grade="3">Łatwe</button>
+                </div>
+            </div>
+
+            <div class="learning-summary" id="learningSummary" hidden>
+                <h3>Sesja zakończona</h3>
+                <div class="learning-summary-grid">
+                    <div><span class="learning-summary-value" id="learningSummaryReviewed">0</span><span class="learning-summary-label">Ocen</span></div>
+                    <div><span class="learning-summary-value" id="learningSummaryCorrect">0</span><span class="learning-summary-label">Poprawne</span></div>
+                    <div><span class="learning-summary-value" id="learningSummaryAccuracy">—</span><span class="learning-summary-label">Skuteczność</span></div>
+                    <div><span class="learning-summary-value" id="learningSummaryNew">0</span><span class="learning-summary-label">Nowe znaki</span></div>
+                </div>
+                <button class="btn btn-primary" id="learningNextSession">Następna sesja</button>
+            </div>
+
+            <div class="learning-data-toolbar">
+                <button class="btn btn-secondary" id="learningExport">Eksportuj postęp</button>
+                <button class="btn btn-secondary" id="learningImport">Importuj postęp</button>
+                <button class="btn btn-secondary" id="learningReset">Wyczyść postęp nauki</button>
+                <input type="file" id="learningImportFile" accept=".json,application/json" hidden>
             </div>
         </div>
 
@@ -1611,6 +1711,8 @@
                 <button class="btn btn-primary" id="bulkImportSelect">Dodaj paczkę słownika</button>
                 <button class="btn btn-secondary" id="bulkImportPause" disabled>Pauza importu</button>
                 <button class="btn btn-secondary" id="bulkPersist">Włącz trwałą pamięć</button>
+                <button class="btn btn-secondary" id="bulkBackup" disabled>Eksportuj pełną bazę JSON</button>
+                <button class="btn btn-secondary" id="bulkWordList" disabled>Pobierz listę słów TXT</button>
                 <input type="file" id="bulkDictionaryFile" accept=".txt,.csv,.json,.dic,text/plain,text/csv,application/json" hidden>
             </div>
             <div class="bulk-progress-block">
@@ -3028,11 +3130,6 @@
         const importBtn = document.getElementById('importBtn');
         const downloadAllBtn = document.getElementById('downloadAllBtn');
         const importFile = document.getElementById('importFile');
-        const recognitionCanvas = document.getElementById('recognitionCanvas');
-        const recognitionInput = document.getElementById('recognitionInput');
-        const recognitionCheck = document.getElementById('recognitionCheck');
-        const recognitionRandom = document.getElementById('recognitionRandom');
-        const recognitionFeedback = document.getElementById('recognitionFeedback');
         const footerReset = document.getElementById('footerReset');
         const sentenceInput = document.getElementById('sentenceInput');
         const sentenceGenerate = document.getElementById('sentenceGenerate');
@@ -3065,7 +3162,6 @@
         let currentGlyphWord = null;
         let currentGlyphVariantSeed = null;
         let currentGlyphIsDraft = false;
-        let recognitionCurrentWord = null;
         let currentSentenceModel = null;
         let currentEncodedDocument = null;
         let currentDecodedDocumentText = '';
@@ -3644,69 +3740,118 @@
             }
         }
 
-        function exportDatabase() {
-            if (db.words.length === 0) {
-                setStatus('Baza jest pusta — nie ma czego eksportować.', 'warning');
-                setTimeout(clearStatus, 2000);
-                return;
+        async function exportDatabase() {
+            const originalLabel = exportBtn.textContent;
+            const bulkBackupButton = document.getElementById('bulkBackup');
+            exportBtn.disabled = true;
+            if (bulkBackupButton) bulkBackupButton.disabled = true;
+            exportBtn.textContent = 'Przygotowywanie…';
+            setStatus('Zbieram ręczne znaki i słownik masowy do pełnego backupu…', 'info');
+            try {
+                await globalThis.GlyphBulk?.ready?.();
+                const bulkWords = globalThis.GlyphBulk?.exportBackupRecords?.() || [];
+                const total = db.words.length + bulkWords.length;
+                if (total === 0) {
+                    setStatus('Baza jest pusta — nie ma czego eksportować.', 'warning');
+                    return;
+                }
+                await new Promise(resolve => requestAnimationFrame(resolve));
+                const payload = {
+                    format: 'glyph-os-database-backup',
+                    formatVersion: 3,
+                    exportedAt: new Date().toISOString(),
+                    generatorVersion: GENERATOR_VERSION,
+                    counts: {
+                        localWords: db.words.length,
+                        bulkWords: bulkWords.length,
+                        totalWords: total,
+                    },
+                    words: db.words,
+                    bulkWords,
+                };
+                const blob = new Blob([JSON.stringify(payload)], { type: 'application/json;charset=utf-8' });
+                triggerBlobDownload(blob, `glyph-os-pelna-baza-${formatLocalDate()}.json`);
+                setStatus(
+                    `Wyeksportowano pełną bazę: ${total.toLocaleString('pl-PL')} haseł, w tym ${bulkWords.length.toLocaleString('pl-PL')} ze słownika masowego.`,
+                    'success'
+                );
+                return { total, bulkWords: bulkWords.length, localWords: db.words.length };
+            } catch (error) {
+                console.error('Błąd eksportu pełnej bazy:', error);
+                setStatus(`Nie udało się wyeksportować pełnej bazy: ${error.message}`, 'warning');
+                return null;
+            } finally {
+                exportBtn.textContent = originalLabel;
+                exportBtn.disabled = false;
+                if (bulkBackupButton) bulkBackupButton.disabled = getTotalDictionaryCount() === 0;
             }
-            const dataStr = JSON.stringify(db, null, 2);
-            const blob = new Blob([dataStr], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'jezyk_obrazowy_baza.json';
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-            setStatus('Eksportowano bazę do pliku JSON.', 'success');
-            setTimeout(clearStatus, 2000);
         }
 
-        function importDatabase(file) {
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                try {
-                    const data = JSON.parse(e.target.result);
-                    if (data && Array.isArray(data.words)) {
-                        // Połącz z istniejącą bazą (unikalne słowa)
-                        let addedCount = 0;
-                        data.words.forEach(entry => {
-                            if (entry.word && !findWord(db, entry.word)) {
-                                const hasCompatibleGlyph = Array.isArray(entry.glyphData) && entry.glyphData.length > 0;
-                                db.words.push({
-                                    word: entry.word,
-                                    glyphData: hasCompatibleGlyph
-                                        ? entry.glyphData
-                                        : generateGlyphStrokes(entry.word, entry.variantSeed),
-                                    glyphVersion: hasCompatibleGlyph
-                                        ? (entry.glyphVersion ?? GLYPH_DATA_VERSION)
-                                        : GLYPH_DATA_VERSION,
-                                    generatorVersion: hasCompatibleGlyph
-                                        ? (entry.generatorVersion ?? 1)
-                                        : GENERATOR_VERSION,
-                                    variantSeed: entry.variantSeed ?? null,
-                                    timestamp: entry.timestamp || new Date().toISOString(),
-                                });
-                                addedCount++;
-                            }
-                        });
-                        saveDatabase(db);
-                        renderGallery();
-                        updateWordCount();
-                        setStatus(`Zaimportowano ${addedCount} nowych słów.`, 'success');
-                        setTimeout(clearStatus, 2500);
-                    } else {
-                        setStatus('Nieprawidłowy format pliku JSON.', 'warning');
-                        setTimeout(clearStatus, 2500);
-                    }
-                } catch (err) {
-                    setStatus('Błąd importu: nieprawidłowy JSON.', 'warning');
-                    setTimeout(clearStatus, 2500);
+        async function importDatabase(file) {
+            const originalLabel = importBtn.textContent;
+            importBtn.disabled = true;
+            importBtn.textContent = 'Importowanie…';
+            setStatus(`Czytam backup „${file.name}”…`, 'info');
+            try {
+                const text = (await file.text()).replace(/^\uFEFF/u, '');
+                const data = JSON.parse(text);
+                const localWords = Array.isArray(data?.words) ? data.words : [];
+                const bulkWords = Array.isArray(data?.bulkWords) ? data.bulkWords : [];
+                if (localWords.length === 0 && bulkWords.length === 0) {
+                    throw new Error('Plik nie zawiera tablicy words ani bulkWords.');
                 }
-            };
-            reader.readAsText(file);
+
+                let localAdded = 0;
+                localWords.forEach(entry => {
+                    if (!entry?.word || findLocalWord(db, entry.word)) return;
+                    const hasCompatibleGlyph = Array.isArray(entry.glyphData) && entry.glyphData.length > 0;
+                    db.words.push({
+                        word: String(entry.word).normalize('NFC').trim(),
+                        glyphData: hasCompatibleGlyph
+                            ? entry.glyphData
+                            : generateGlyphStrokes(entry.word, entry.variantSeed),
+                        glyphVersion: hasCompatibleGlyph
+                            ? (entry.glyphVersion ?? GLYPH_DATA_VERSION)
+                            : GLYPH_DATA_VERSION,
+                        generatorVersion: hasCompatibleGlyph
+                            ? (entry.generatorVersion ?? 1)
+                            : GENERATOR_VERSION,
+                        variantSeed: entry.variantSeed ?? null,
+                        timestamp: entry.timestamp || new Date().toISOString(),
+                    });
+                    localAdded += 1;
+                });
+                if (localAdded > 0 && !saveDatabase(db)) {
+                    throw new Error('Brak miejsca na zapis ręcznych wariantów w localStorage.');
+                }
+
+                let bulkResult = { added: 0, skipped: 0, invalid: 0, total: 0 };
+                if (bulkWords.length > 0) {
+                    if (!globalThis.GlyphBulk?.importBackupRecords) {
+                        throw new Error('Moduł słownika masowego nie jest dostępny.');
+                    }
+                    bulkResult = await globalThis.GlyphBulk.importBackupRecords(bulkWords, progress => {
+                        setStatus(
+                            `Przywracanie słownika masowego: ${progress.processed.toLocaleString('pl-PL')}/${progress.total.toLocaleString('pl-PL')} • dodano ${progress.added.toLocaleString('pl-PL')} • pominięto ${progress.skipped.toLocaleString('pl-PL')}`,
+                            'info'
+                        );
+                    });
+                }
+
+                renderGallery();
+                updateWordCount();
+                await globalThis.GlyphLearning?.refresh?.();
+                setStatus(
+                    `Import zakończony: ręczne +${localAdded.toLocaleString('pl-PL')}, masowe +${bulkResult.added.toLocaleString('pl-PL')}, duplikaty ${bulkResult.skipped.toLocaleString('pl-PL')}.`,
+                    'success'
+                );
+            } catch (error) {
+                console.error('Błąd importu bazy:', error);
+                setStatus(`Nie udało się zaimportować bazy: ${error.message}`, 'warning');
+            } finally {
+                importBtn.textContent = originalLabel;
+                importBtn.disabled = false;
+            }
         }
 
         // =====================================================
@@ -6097,63 +6242,6 @@
         }
 
         // =====================================================
-        // ==================== RECOGNITION MODE ====================
-        // =====================================================
-
-        function randomWordFromDB() {
-            const total = getTotalDictionaryCount();
-            if (total === 0) {
-                recognitionFeedback.textContent = 'Baza jest pusta. Zapisz najpierw kilka słów!';
-                recognitionFeedback.className = 'recognition-feedback incorrect';
-                return null;
-            }
-            const bulkCount = globalThis.GlyphBulk?.count?.() || 0;
-            const useBulk = bulkCount > 0 && (db.words.length === 0 || Math.random() < bulkCount / Math.max(1, total));
-            if (useBulk) return globalThis.GlyphBulk.randomWord();
-            const idx = Math.floor(Math.random() * db.words.length);
-            return db.words[idx] || globalThis.GlyphBulk?.randomWord?.() || null;
-        }
-
-        function showRandomGlyphForRecognition() {
-            const entry = randomWordFromDB();
-            if (!entry) return;
-            recognitionCurrentWord = entry.word;
-            const strokes = getEntryGlyph(entry);
-            renderGlyph(recognitionCanvas, strokes, false, 0);
-            recognitionInput.value = '';
-            recognitionFeedback.textContent = '';
-            recognitionFeedback.className = 'recognition-feedback';
-            recognitionInput.focus();
-        }
-
-        function checkRecognitionGuess() {
-            if (!recognitionCurrentWord) {
-                recognitionFeedback.textContent = 'Najpierw wylosuj znak!';
-                recognitionFeedback.className = 'recognition-feedback incorrect';
-                return;
-            }
-            const guess = recognitionInput.value.trim();
-            if (!guess) {
-                recognitionFeedback.textContent = 'Wpisz swoje odgadnięcie.';
-                recognitionFeedback.className = 'recognition-feedback incorrect';
-                return;
-            }
-            if (normalizeDictionaryKey(guess) === normalizeDictionaryKey(recognitionCurrentWord)) {
-                recognitionFeedback.textContent = `✅ Poprawnie! To znak słowa "${recognitionCurrentWord}".`;
-                recognitionFeedback.className = 'recognition-feedback correct';
-                recognitionInput.value = '';
-                // Automatycznie pokaż następny po chwili
-                setTimeout(() => {
-                    showRandomGlyphForRecognition();
-                }, 1800);
-            } else {
-                recognitionFeedback.textContent = `❌ Niepoprawnie. Spróbuj ponownie! (Podpowiedź: ${recognitionCurrentWord.length} liter)`;
-                recognitionFeedback.className = 'recognition-feedback incorrect';
-                recognitionInput.select();
-            }
-        }
-
-        // =====================================================
         // ==================== EVENT HANDLERS ====================
         // =====================================================
 
@@ -6293,15 +6381,6 @@
             setDocumentStatus('Treść zmieniono. Kliknij „Zakoduj dokument”, aby utworzyć nowy plik.');
         });
 
-        recognitionCheck.addEventListener('click', checkRecognitionGuess);
-        recognitionRandom.addEventListener('click', showRandomGlyphForRecognition);
-        recognitionInput.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                checkRecognitionGuess();
-            }
-        });
-
         gallerySearch.addEventListener('input', renderGallery);
         gallerySearchClear.addEventListener('click', () => {
             gallerySearch.value = '';
@@ -6318,10 +6397,7 @@
                 renderGallery();
                 updateWordCount();
                 clearGenerator();
-                recognitionCurrentWord = null;
-                const ctx = recognitionCanvas.getContext('2d');
-                paintPaper(ctx, recognitionCanvas.width, recognitionCanvas.height);
-                recognitionFeedback.textContent = '';
+                globalThis.GlyphLearning?.refresh?.();
                 clearSentenceMode();
                 clearDocumentCodecState();
                 setStatus('Baza została zresetowana.', 'info');
@@ -6346,10 +6422,6 @@
             // Ustaw początkowe tło canvasa
             clearGenerator();
 
-            // Ustaw początkowe tło canvasa rozpoznawania
-            const ctx = recognitionCanvas.getContext('2d');
-            paintPaper(ctx, recognitionCanvas.width, recognitionCanvas.height);
-
             updateDocumentCounter();
 
             // Fokus na pole wejściowe
@@ -6370,5 +6442,6 @@
         init();
     </script>
     <script src="./bulk-dictionary.js"></script>
+    <script src="./learning-engine.js"></script>
 </body>
 </html>

@@ -2,7 +2,7 @@
   "id": "./",
   "name": "Glyph OS — Język Obrazowy",
   "short_name": "Glyph OS",
-  "description": "Generator własnego języka symboli, zdań i rozpoznawania obrazów.",
+  "description": "Generator własnego języka symboli z dokumentami, rozpoznawaniem i inteligentnymi powtórkami.",
   "lang": "pl-PL",
   "dir": "ltr",
   "start_url": "./index.html",
@@ -44,6 +44,12 @@
       "name": "Generator zdań",
       "short_name": "Zdanie",
       "url": "./index.html#sentenceInput",
+      "icons": [{ "src": "./icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Akademia Glifów",
+      "short_name": "Nauka",
+      "url": "./index.html#learningModule",
       "icons": [{ "src": "./icons/icon-192.png", "sizes": "192x192" }]
     }
   ]

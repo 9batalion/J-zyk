@@ -14,6 +14,7 @@
     const PNG_BATCH_SIZE = 6;
     const MAX_IMPORT_WORDS_PER_FILE = 200000;
     const MAX_IMPORT_FILE_SIZE = 100 * 1024 * 1024;
+    const MAX_BACKUP_WORDS = 500000;
     const ZIP_BATCH_SIZE = 500;
 
     let database = null;
@@ -215,6 +216,9 @@
             }
             if (elements.pngStart) elements.pngStart.disabled = words.size === 0;
             if (elements.zip) elements.zip.disabled = pngCount === 0;
+            const totalWords = getTotalUniqueCount();
+            if (elements.backup) elements.backup.disabled = totalWords === 0;
+            if (elements.wordList) elements.wordList.disabled = totalWords === 0;
             await refreshStorageEstimate();
         } catch (error) {
             console.warn('Nie udało się odświeżyć statystyk dużej bazy:', error);
@@ -307,15 +311,20 @@
         return Math.imul(hash, 16777619) >>> 0;
     }
 
-    function createImportRecords(word, sourceName, importedAt) {
+    function createImportRecords(word, sourceName, importedAt, options = {}) {
         const key = normalizeDictionaryKey(word);
-        const variantSeed = deterministicSeed(key);
+        const variantSeed = options.variantSeed !== null && options.variantSeed !== '' && Number.isFinite(Number(options.variantSeed))
+            ? Number(options.variantSeed) >>> 0
+            : deterministicSeed(key);
+        const generatorVersion = options.generatorVersion !== null && options.generatorVersion !== '' && Number.isFinite(Number(options.generatorVersion))
+            ? Number(options.generatorVersion)
+            : GENERATOR_VERSION;
         const entry = {
             word: String(word).normalize('NFC').trim(),
             key,
             glyphWord: key,
             variantSeed,
-            generatorVersion: GENERATOR_VERSION,
+            generatorVersion,
             timestamp: importedAt,
             isBulk: true,
         };
@@ -326,7 +335,7 @@
                 key,
                 word: entry.word,
                 variantSeed,
-                generatorVersion: GENERATOR_VERSION,
+                generatorVersion,
                 importedAt,
                 sourceName,
             },
@@ -424,6 +433,18 @@
             signatureStore.put(record.signature);
         });
         transaction.objectStore(META_STORE).put(job);
+        await transactionDone(transaction);
+    }
+
+    async function saveBackupBatch(records) {
+        const dbHandle = await openDatabase();
+        const transaction = dbHandle.transaction([WORD_STORE, SIGNATURE_STORE], 'readwrite');
+        const wordStore = transaction.objectStore(WORD_STORE);
+        const signatureStore = transaction.objectStore(SIGNATURE_STORE);
+        records.forEach(record => {
+            wordStore.put(record.word);
+            signatureStore.put(record.signature);
+        });
         await transactionDone(transaction);
     }
 
@@ -816,6 +837,123 @@
         }
     }
 
+    function exportBackupRecords() {
+        return [...words.values()].map(entry => ({
+            word: entry.word,
+            key: entry.key,
+            variantSeed: entry.variantSeed,
+            generatorVersion: entry.generatorVersion,
+            importedAt: entry.timestamp || null,
+            sourceName: entry.sourceName || '',
+        }));
+    }
+
+    async function importBackupRecords(sourceRecords, onProgress = null) {
+        await ready();
+        if (!Array.isArray(sourceRecords)) throw new Error('Backup nie zawiera listy słownika masowego.');
+        if (sourceRecords.length > MAX_BACKUP_WORDS) {
+            throw new Error(`Backup przekracza limit ${MAX_BACKUP_WORDS.toLocaleString('pl-PL')} haseł masowych.`);
+        }
+        const activeJob = await getMeta(IMPORT_JOB_KEY);
+        if (activeJob && Array.isArray(activeJob.words) && activeJob.index < activeJob.words.length) {
+            throw new Error('Najpierw dokończ rozpoczęty import paczki słownika.');
+        }
+
+        const unique = new Map();
+        let invalid = 0;
+        sourceRecords.forEach(source => {
+            const rawWord = typeof source === 'string' ? source : source?.word;
+            const word = normalizeImportedWord(rawWord);
+            if (!word) {
+                invalid += 1;
+                return;
+            }
+            const key = normalizeDictionaryKey(word);
+            if (!unique.has(key)) unique.set(key, {
+                word,
+                key,
+                variantSeed: typeof source === 'object' ? source.variantSeed : null,
+                generatorVersion: typeof source === 'object' ? source.generatorVersion : null,
+                importedAt: typeof source === 'object' ? source.importedAt : null,
+                sourceName: typeof source === 'object' ? source.sourceName : '',
+            });
+        });
+
+        let processed = 0;
+        let added = 0;
+        let skipped = 0;
+        const records = [...unique.values()];
+        if (elements.importSelect) elements.importSelect.disabled = true;
+        try {
+            for (let offset = 0; offset < records.length; offset += IMPORT_BATCH_SIZE) {
+                const sourceBatch = records.slice(offset, offset + IMPORT_BATCH_SIZE);
+                const importRecords = [];
+                for (const source of sourceBatch) {
+                    const localExists = typeof findLocalWord === 'function' && findLocalWord(db, source.word);
+                    if (words.has(source.key) || localExists) {
+                        skipped += 1;
+                        continue;
+                    }
+                    importRecords.push(createImportRecords(
+                        source.word,
+                        source.sourceName || 'backup-json',
+                        source.importedAt || new Date().toISOString(),
+                        source,
+                    ));
+                }
+                await saveBackupBatch(importRecords);
+                importRecords.forEach(record => words.set(record.word.key, asBulkEntry(record.word)));
+                processed += sourceBatch.length;
+                added += importRecords.length;
+                if (typeof onProgress === 'function') onProgress({
+                    processed,
+                    total: records.length,
+                    added,
+                    skipped,
+                    invalid,
+                });
+                if (processed % (IMPORT_BATCH_SIZE * 5) === 0 || processed >= records.length) {
+                    await refreshStats();
+                    refreshMainInterface();
+                }
+                await new Promise(resolve => setTimeout(resolve, 0));
+            }
+        } finally {
+            if (elements.importSelect) elements.importSelect.disabled = false;
+        }
+        await refreshStats();
+        refreshMainInterface();
+        return { processed, added, skipped, invalid, total: records.length };
+    }
+
+    function downloadCombinedWordList() {
+        const combined = new Map();
+        if (typeof db !== 'undefined' && Array.isArray(db.words)) {
+            db.words.forEach(entry => {
+                const key = normalizeDictionaryKey(entry.word);
+                if (key) combined.set(key, entry.word);
+            });
+        }
+        words.forEach(entry => {
+            if (!combined.has(entry.key)) combined.set(entry.key, entry.word);
+        });
+        if (combined.size === 0) {
+            setStatus('Baza jest pusta — nie ma listy słów do pobrania.', 'warning');
+            return;
+        }
+        const wordList = [...combined.values()].sort((left, right) => left.localeCompare(right, 'pl-PL'));
+        const blob = new Blob(['\ufeff', wordList.join('\n'), '\n'], { type: 'text/plain;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `glyph-os-lista-slow-${new Date().toISOString().slice(0, 10)}.txt`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 2000);
+        setStatus(`Pobrano listę ${combined.size.toLocaleString('pl-PL')} słów obecnych w bazie.`, 'success');
+    }
+
     async function removeWord(value) {
         await ready();
         const key = normalizeDictionaryKey(value);
@@ -893,6 +1031,8 @@
         elements.pngProgressText = document.getElementById('bulkPngProgressText');
         elements.persist = document.getElementById('bulkPersist');
         elements.zip = document.getElementById('bulkZip');
+        elements.backup = document.getElementById('bulkBackup');
+        elements.wordList = document.getElementById('bulkWordList');
         elements.clear = document.getElementById('bulkClear');
         elements.status = document.getElementById('bulkStatus');
     }
@@ -909,6 +1049,18 @@
         elements.pngPause?.addEventListener('click', togglePngPause);
         elements.persist?.addEventListener('click', requestPersistentStorage);
         elements.zip?.addEventListener('click', downloadCachedZipBatch);
+        elements.backup?.addEventListener('click', async () => {
+            if (typeof exportDatabase !== 'function') return;
+            setStatus('Przygotowuję pełny backup ręcznych znaków i słownika masowego…');
+            const result = await exportDatabase();
+            if (result) {
+                setStatus(
+                    `Pobrano pełny backup ${result.total.toLocaleString('pl-PL')} haseł, w tym ${result.bulkWords.toLocaleString('pl-PL')} masowych.`,
+                    'success'
+                );
+            }
+        });
+        elements.wordList?.addEventListener('click', downloadCombinedWordList);
         elements.clear?.addEventListener('click', () => clearDatabase(false));
     }
 
@@ -964,6 +1116,9 @@
         recent: recentWords,
         randomWord,
         matchBinaryMap,
+        exportBackupRecords,
+        importBackupRecords,
+        downloadCombinedWordList,
         removeWord,
         clear: clearDatabase,
         refreshStats,
