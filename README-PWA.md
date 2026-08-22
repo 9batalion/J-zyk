@@ -24,7 +24,3 @@ Otwórz stronę w Safari, wybierz `Udostępnij`, następnie `Do ekranu początko
 ## Dane użytkownika
 
 Baza symboli jest przechowywana lokalnie w przeglądarce. Aktualizacja plików PWA nie usuwa bazy, ale wyczyszczenie danych witryny lub odinstalowanie aplikacji może ją skasować. Warto regularnie używać przycisku `Eksportuj bazę`.
-
-## Generator i rozpoznawanie
-
-Generator korzysta z geometrycznego alfabetu inspirowanego materiałem wzorcowym. Długość słowa steruje liczbą gałęzi, zakończeń i diakrytyków. Silnik rozpoznawania porównuje znormalizowane mapy binarne 40×40 i odrzuca niejednoznaczne dopasowania zamiast automatycznie wpisywać błędne słowo.
