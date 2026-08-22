@@ -1522,6 +1522,8 @@
                 Dopasowanie słów do bazy nie rozróżnia małych i wielkich liter. Format służy do zapisu
                 symbolicznego — nie jest szyfrowaniem. Jeżeli w tekście występują nowe słowa, program
                 automatycznie utworzy dla nich glify, zapisze indeksy rozpoznawania i dopiero potem zakoduje dokument.
+                Przy odczycie obrazu bez metadanych nierozpoznane miejsca zostaną jawnie oznaczone,
+                a program będzie kontynuował do końca pliku.
             </p>
             <div class="document-grid">
                 <div>
@@ -5137,6 +5139,61 @@
             }
         }
 
+        function unreadableGlyphMarker(index) {
+            return `[NIEODCZYTANE_${String(index).padStart(2, '0')}]`;
+        }
+
+        function uncertainGlyphMarker(index, word) {
+            const safeWord = String(word || 'brak')
+                .replace(/[\[\]\r\n:]/g, '_')
+                .slice(0, 80);
+            return `[NIEPEWNE_${String(index).padStart(2, '0')}:${safeWord}]`;
+        }
+
+        function unreadablePageMarker(index) {
+            return `[NIEODCZYTANA_STRONA_${String(index).padStart(3, '0')}]`;
+        }
+
+        /**
+         * Nie zatrzymuje odczytu na niepewnym glifie. Najlepszego kandydata
+         * zachowuje jako jawnie oznaczoną sugestię, a brak wyniku jako stabilny
+         * znacznik pozycji. Przekazany licznik pozwala numerować braki przez
+         * wiele wierszy i stron jednego dokumentu.
+         */
+        function resolvePartialRecognitionTokens(tokens, counters = {}) {
+            if (!Number.isInteger(counters.uncertain)) counters.uncertain = 0;
+            if (!Number.isInteger(counters.unresolved)) counters.unresolved = 0;
+
+            return tokens.map(token => {
+                if (token.type !== 'word') return token;
+                if (token.entry && token.confidence !== 'low') return token;
+                if (token.entry) {
+                    counters.uncertain++;
+                    return {
+                        ...token,
+                        value: uncertainGlyphMarker(counters.uncertain, token.entry.word),
+                        confidence: 'low',
+                    };
+                }
+                if (token.candidateEntry && token.score >= 0.90) {
+                    counters.uncertain++;
+                    return {
+                        ...token,
+                        value: uncertainGlyphMarker(counters.uncertain, token.candidateEntry.word),
+                        entry: token.candidateEntry,
+                        confidence: 'low',
+                    };
+                }
+                counters.unresolved++;
+                return {
+                    ...token,
+                    value: unreadableGlyphMarker(counters.unresolved),
+                    entry: null,
+                    confidence: 'unknown',
+                };
+            });
+        }
+
         function binaryConfidence(match) {
             if (!match) return 'unknown';
             if (match.score >= 0.86 && match.margin >= 0.035) return 'high';
@@ -5203,7 +5260,7 @@
                     unknownNumber++;
                     detected.push({
                         type: 'word',
-                        value: `nierozpoznany${unknownNumber}`,
+                        value: unreadableGlyphMarker(unknownNumber),
                         entry: null,
                         candidateEntry: glyphMatch ? glyphMatch.entry : null,
                         score: glyphMatch ? glyphMatch.score : 0,
@@ -5273,6 +5330,8 @@
 
                 // Puste pola w ostatnim wierszu nie zawierają atramentu.
                 if (map.count < 5) continue;
+                const lineBreakBefore = detected.length > 0 &&
+                    detected[detected.length - 1].rowIndex !== row;
 
                 const glyphMatch = await matchBinaryGlyphAcrossDatabases(map, dictionary);
                 const punctuationMatch = matchBinaryPunctuation(map, punctuationTemplates);
@@ -5285,6 +5344,8 @@
                         type: 'punctuation',
                         value: punctuationMatch.value,
                         score: punctuationMatch.score,
+                        lineBreakBefore,
+                        rowIndex: row,
                     });
                     continue;
                 }
@@ -5293,12 +5354,14 @@
                     unknownNumber++;
                     detected.push({
                         type: 'word',
-                        value: `nierozpoznany${unknownNumber}`,
+                        value: unreadableGlyphMarker(unknownNumber),
                         entry: null,
                         candidateEntry: glyphMatch ? glyphMatch.entry : null,
                         score: glyphMatch ? glyphMatch.score : 0,
                         margin: glyphMatch ? glyphMatch.margin : 0,
                         confidence: 'unknown',
+                        lineBreakBefore,
+                        rowIndex: row,
                     });
                     continue;
                 }
@@ -5310,6 +5373,8 @@
                     score: glyphMatch.score,
                     margin: glyphMatch.margin,
                     confidence: binaryConfidence(glyphMatch),
+                    lineBreakBefore,
+                    rowIndex: row,
                 });
             }
 
@@ -5352,8 +5417,15 @@
 
             tokens.forEach(token => {
                 const value = token.value;
+                if (token.lineBreakBefore && text) {
+                    text = text.replace(/[ \t]+$/g, '');
+                    text += '\n';
+                    previous = '';
+                }
                 if (!text) {
                     text = value;
+                } else if (text.endsWith('\n')) {
+                    text += value;
                 } else if (closing.has(value) || joining.has(value) || opening.has(previous) || joining.has(previous)) {
                     text += value;
                 } else {
@@ -5453,7 +5525,9 @@
                     throw visualError || new Error('Nie udało się rozpoznać obrazu.');
                 }
 
-                const recognizedText = binaryTokensToText(visual.detected);
+                const partialCounters = { uncertain: 0, unresolved: 0 };
+                const partialTokens = resolvePartialRecognitionTokens(visual.detected, partialCounters);
+                const recognizedText = binaryTokensToText(partialTokens);
                 sentenceInput.value = recognizedText;
                 const result = applySentenceText(recognizedText);
                 if (!result) return;
@@ -5464,10 +5538,11 @@
                 const detectionInfo = visual.layout.mode === 'freeform'
                     ? `Wykryto ${visual.layout.symbolCount} symboli w ${visual.layout.rowCount} ${visual.layout.rowCount === 1 ? 'wierszu' : 'wierszach'}.`
                     : 'Rozpoznano układ eksportowy.';
-                const message = visual.uncertainCount > 0
-                    ? `${detectionInfo} Odczyt: ${recognizedText} Średnia zgodność ${confidence}%; ${visual.uncertainCount} wyników wymaga sprawdzenia.`
+                const markedCount = partialCounters.uncertain + partialCounters.unresolved;
+                const message = markedCount > 0
+                    ? `${detectionInfo} Odczytano wszystko, co było możliwe. ${partialCounters.uncertain} niepewnych dopasowań i ${partialCounters.unresolved} braków oznaczono w tekście; dekodowanie nie zostało przerwane. Średnia zgodność ${confidence}%.`
                     : `${detectionInfo} Odczyt: ${recognizedText} Wszystkie słowa dopasowano do bazy ze średnią zgodnością ${confidence}%.`;
-                setSentenceFeedback(message, visual.uncertainCount > 0 ? 'warning' : 'success');
+                setSentenceFeedback(message, markedCount > 0 ? 'warning' : 'success');
             } catch (error) {
                 console.error('Błąd rozpoznawania PNG:', error);
                 setSentenceFeedback(`Nie udało się odczytać obrazu: ${error.message}`, 'warning');
@@ -5489,13 +5564,18 @@
         const DOCUMENT_MAX_PAGES = 250;
         const DOCUMENT_MAX_FILE_SIZE = 100 * 1024 * 1024;
         const DOCUMENT_MAX_ARCHIVE_SIZE = 200 * 1024 * 1024;
-        const DOCUMENT_PAGE_WIDTH = 1200;
-        const DOCUMENT_PAGE_HEIGHT = 1600;
-        const DOCUMENT_PAGE_MARGIN = 70;
-        const DOCUMENT_GLYPH_SIZE = 96;
-        const DOCUMENT_LINE_HEIGHT = 140;
-        const DOCUMENT_WORD_GAP = 18;
+        // Arkusz w proporcji A4. Skład mieści zwykle 230–270 glifów na stronie,
+        // czyli około połowy liczby słów typowego dokumentu tekstowego A4.
+        const DOCUMENT_PAGE_WIDTH = 1600;
+        const DOCUMENT_PAGE_HEIGHT = 2263;
+        const DOCUMENT_PAGE_MARGIN_X = 104;
+        const DOCUMENT_PAGE_MARGIN_TOP = 126;
+        const DOCUMENT_PAGE_MARGIN_BOTTOM = 112;
+        const DOCUMENT_GLYPH_SIZE = 82;
+        const DOCUMENT_LINE_HEIGHT = 118;
+        const DOCUMENT_WORD_GAP = 12;
         const DOCUMENT_PUNCTUATION_GAP = 4;
+        const DOCUMENT_PUNCTUATION_FONT_SIZE = 46;
 
         function setDocumentStatus(message, type = '') {
             documentStatus.textContent = message;
@@ -5571,23 +5651,23 @@
 
             const pages = [[]];
             let pageIndex = 0;
-            let cursorX = DOCUMENT_PAGE_MARGIN;
-            let cursorY = DOCUMENT_PAGE_MARGIN;
+            let cursorX = DOCUMENT_PAGE_MARGIN_X;
+            let cursorY = DOCUMENT_PAGE_MARGIN_TOP;
             let previous = null;
 
             const startNewPage = () => {
                 pages.push([]);
                 pageIndex++;
-                cursorX = DOCUMENT_PAGE_MARGIN;
-                cursorY = DOCUMENT_PAGE_MARGIN;
+                cursorX = DOCUMENT_PAGE_MARGIN_X;
+                cursorY = DOCUMENT_PAGE_MARGIN_TOP;
                 previous = null;
             };
 
             const startNewLine = () => {
-                cursorX = DOCUMENT_PAGE_MARGIN;
+                cursorX = DOCUMENT_PAGE_MARGIN_X;
                 cursorY += DOCUMENT_LINE_HEIGHT;
                 previous = null;
-                if (cursorY + DOCUMENT_GLYPH_SIZE > DOCUMENT_PAGE_HEIGHT - DOCUMENT_PAGE_MARGIN) {
+                if (cursorY + DOCUMENT_GLYPH_SIZE > DOCUMENT_PAGE_HEIGHT - DOCUMENT_PAGE_MARGIN_BOTTOM) {
                     startNewPage();
                 }
             };
@@ -5605,8 +5685,8 @@
                     ? itemWidth(next)
                     : 0;
                 if (
-                    cursorX + gap + width + closingWidth > DOCUMENT_PAGE_WIDTH - DOCUMENT_PAGE_MARGIN &&
-                    cursorX > DOCUMENT_PAGE_MARGIN
+                    cursorX + gap + width + closingWidth > DOCUMENT_PAGE_WIDTH - DOCUMENT_PAGE_MARGIN_X &&
+                    cursorX > DOCUMENT_PAGE_MARGIN_X
                 ) {
                     startNewLine();
                     gap = 0;
@@ -5623,17 +5703,103 @@
             return pages;
         }
 
-        function createDocumentPageCanvas(positions) {
+        /**
+         * Jasne akcenty są celowo powyżej progu atramentu mapy binarnej.
+         * Nadają stronie cybernetyczny charakter, ale nie stają się fałszywymi
+         * glifami po wykonaniu zrzutu ekranu lub wydruku.
+         */
+        function paintCyberDocumentFrame(ctx, width, height) {
+            ctx.save();
+
+            // Bardzo delikatna siatka techniczna.
+            ctx.strokeStyle = 'rgba(77, 205, 214, 0.075)';
+            ctx.lineWidth = 1;
+            for (let x = 56; x < width - 56; x += 82) {
+                ctx.beginPath();
+                ctx.moveTo(x, 56);
+                ctx.lineTo(x, height - 56);
+                ctx.stroke();
+            }
+            for (let y = 56; y < height - 56; y += 82) {
+                ctx.beginPath();
+                ctx.moveTo(56, y);
+                ctx.lineTo(width - 56, y);
+                ctx.stroke();
+            }
+
+            const cyan = '#a8e8ea';
+            const violet = '#d9cdf4';
+            const bracket = 88;
+            const inset = 42;
+            const drawCorner = (x, y, dx, dy, color) => {
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 5;
+                ctx.lineCap = 'square';
+                ctx.beginPath();
+                ctx.moveTo(x, y + dy * bracket);
+                ctx.lineTo(x, y);
+                ctx.lineTo(x + dx * bracket, y);
+                ctx.stroke();
+            };
+            drawCorner(inset, inset, 1, 1, cyan);
+            drawCorner(width - inset, inset, -1, 1, violet);
+            drawCorner(inset, height - inset, 1, -1, violet);
+            drawCorner(width - inset, height - inset, -1, -1, cyan);
+
+            // Niezależne szyny na górze i dole nie wchodzą w pole tekstu.
+            ctx.lineCap = 'round';
+            ctx.lineWidth = 3;
+            ctx.strokeStyle = cyan;
+            ctx.beginPath();
+            ctx.moveTo(190, 78);
+            ctx.lineTo(width * 0.42, 78);
+            ctx.moveTo(width * 0.58, height - 78);
+            ctx.lineTo(width - 190, height - 78);
+            ctx.stroke();
+            ctx.strokeStyle = violet;
+            ctx.beginPath();
+            ctx.moveTo(width * 0.58, 78);
+            ctx.lineTo(width - 190, 78);
+            ctx.moveTo(190, height - 78);
+            ctx.lineTo(width * 0.42, height - 78);
+            ctx.stroke();
+
+            // Małe węzły i boczne znaczniki pozostają w marginesie.
+            const node = (x, y, color) => {
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 4;
+                ctx.beginPath();
+                ctx.arc(x, y, 8, 0, Math.PI * 2);
+                ctx.stroke();
+            };
+            node(width / 2, 78, cyan);
+            node(width / 2, height - 78, violet);
+            for (let index = 0; index < 7; index++) {
+                const y = 340 + index * 260;
+                ctx.strokeStyle = index % 2 === 0 ? cyan : violet;
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.moveTo(58, y);
+                ctx.lineTo(78 + (index % 3) * 8, y);
+                ctx.moveTo(width - 58, y + 90);
+                ctx.lineTo(width - 78 - (index % 3) * 8, y + 90);
+                ctx.stroke();
+            }
+            ctx.restore();
+        }
+
+        function createDocumentPageCanvas(positions, pageNumber = 1, pageCount = 1) {
             const canvas = document.createElement('canvas');
             canvas.width = DOCUMENT_PAGE_WIDTH;
             canvas.height = DOCUMENT_PAGE_HEIGHT;
             const ctx = canvas.getContext('2d');
             paintExportPaper(ctx, canvas.width, canvas.height);
+            paintCyberDocumentFrame(ctx, canvas.width, canvas.height);
 
             positions.forEach(({ token, x, y, width }) => {
                 if (token.type === 'punctuation') {
                     ctx.fillStyle = '#18352e';
-                    ctx.font = '700 54px Georgia, serif';
+                    ctx.font = `700 ${DOCUMENT_PUNCTUATION_FONT_SIZE}px Georgia, serif`;
                     ctx.textAlign = 'center';
                     ctx.textBaseline = 'alphabetic';
                     ctx.fillText(token.raw, x + width / 2, y + DOCUMENT_GLYPH_SIZE * 0.78);
@@ -5781,7 +5947,7 @@
 
                 for (let index = 0; index < pages.length; index++) {
                     setDocumentStatus(`Tworzenie strony ${index + 1}/${pages.length}…`);
-                    const canvas = createDocumentPageCanvas(pages[index]);
+                    const canvas = createDocumentPageCanvas(pages[index], index + 1, pages.length);
                     if (index === 0) showDocumentPreview(canvas);
                     const rawPng = await canvasToPngBytes(canvas);
                     const fileName = `strona-${String(index + 1).padStart(3, '0')}.png`;
@@ -5800,6 +5966,9 @@
                         pageText: getDocumentPageText(pages[index]),
                         page: index + 1,
                         pageCount: pages.length,
+                        pageStyle: 'cyber-a4-v1',
+                        pageSize: { width: DOCUMENT_PAGE_WIDTH, height: DOCUMENT_PAGE_HEIGHT },
+                        glyphSize: DOCUMENT_GLYPH_SIZE,
                     };
                     files.push({
                         name: fileName,
@@ -5846,6 +6015,14 @@
                         elements: stats.elementCount,
                         pages: pages.length,
                         autoGeneratedGlyphs: autoGlyphResult.added,
+                        averageGlyphsPerPage: Math.round(stats.wordCount / Math.max(1, pages.length)),
+                    },
+                    layout: {
+                        pageStyle: 'cyber-a4-v1',
+                        pageRatio: 'A4',
+                        width: DOCUMENT_PAGE_WIDTH,
+                        height: DOCUMENT_PAGE_HEIGHT,
+                        glyphSize: DOCUMENT_GLYPH_SIZE,
                     },
                     pages: pageManifest,
                 };
@@ -5865,8 +6042,9 @@
                 documentDownloadText.disabled = false;
                 currentDecodedOriginalFile = currentDocumentOriginalFile;
                 documentDownloadOriginal.disabled = !currentDecodedOriginalFile;
+                const averageGlyphsPerPage = Math.round(stats.wordCount / Math.max(1, pages.length));
                 setDocumentStatus(
-                    `Zakodowano ${stats.wordCount.toLocaleString('pl-PL')} słów na ${pages.length} ${pages.length === 1 ? 'stronie' : 'stronach'}.${autoGlyphResult.added ? ` Automatycznie dodano ${autoGlyphResult.added.toLocaleString('pl-PL')} nowych glifów do bazy.` : ''}${originalFile ? ' Dołączono plik źródłowy.' : ''} Wielkość liter nie wpływa na dobór glifów.`,
+                    `Zakodowano ${stats.wordCount.toLocaleString('pl-PL')} słów na ${pages.length} ${pages.length === 1 ? 'stronie' : 'stronach'} A4 — średnio ${averageGlyphsPerPage.toLocaleString('pl-PL')} glifów na stronę.${autoGlyphResult.added ? ` Automatycznie dodano ${autoGlyphResult.added.toLocaleString('pl-PL')} nowych glifów do bazy.` : ''}${originalFile ? ' Dołączono plik źródłowy.' : ''} Wielkość liter nie wpływa na dobór glifów.`,
                     'success'
                 );
             } catch (error) {
@@ -6167,30 +6345,28 @@
 
         async function recognizeDocumentPagesVisually(pageEntries) {
             const parts = [];
-            let suggestions = 0;
-            let unresolved = 0;
+            const counters = { uncertain: 0, unresolved: 0 };
+            let failedPages = 0;
             for (let index = 0; index < pageEntries.length; index++) {
                 setDocumentStatus(`Rozpoznawanie obrazu strony ${index + 1}/${pageEntries.length}…`);
-                const canvas = await imageFileToCanvas(new Blob([pageEntries[index][1]], { type: 'image/png' }));
-                const result = await recognizeSentenceByBinaryMap(canvas);
-                const resolvedTokens = result.detected.map(token => {
-                    if (token.type !== 'word' || token.entry) return token;
-                    if (token.candidateEntry && token.score >= 0.90) {
-                        suggestions++;
-                        return {
-                            ...token,
-                            value: token.candidateEntry.word,
-                            entry: token.candidateEntry,
-                            confidence: 'low',
-                        };
-                    }
-                    unresolved++;
-                    return token;
-                });
-                parts.push(binaryTokensToText(resolvedTokens));
-                if (index === 0) showDocumentPreview(canvas);
+                try {
+                    const canvas = await imageFileToCanvas(new Blob([pageEntries[index][1]], { type: 'image/png' }));
+                    const result = await recognizeSentenceByBinaryMap(canvas);
+                    const resolvedTokens = resolvePartialRecognitionTokens(result.detected, counters);
+                    parts.push(binaryTokensToText(resolvedTokens));
+                    if (index === 0) showDocumentPreview(canvas);
+                } catch (error) {
+                    failedPages++;
+                    parts.push(unreadablePageMarker(index + 1));
+                    console.warn(`Nie udało się odczytać strony ${index + 1}; kontynuuję dokument.`, error);
+                }
             }
-            return { text: parts.join('\n'), suggestions, unresolved };
+            return {
+                text: parts.join('\n\n'),
+                suggestions: counters.uncertain,
+                unresolved: counters.unresolved,
+                failedPages,
+            };
         }
 
         async function decodeDocumentFile(file) {
@@ -6278,7 +6454,7 @@
                 setDocumentStatus(
                     exact
                         ? `Odkodowano dokładną treść dokumentu (${pageCount} ${pageCount === 1 ? 'strona' : 'stron'}). Zachowano wielkość liter, akapity i polskie znaki.${currentDecodedOriginalFile ? ' Oryginalny plik jest gotowy do pobrania.' : ''}`
-                        : `Odczytano ${pageCount} ${pageCount === 1 ? 'stronę' : 'stron'} z obrazu. Wielkość liter nie wpływała na dopasowanie. ${visualInfo?.suggestions || 0} niejednoznacznych znaków uzupełniono najlepszym wynikiem, ${visualInfo?.unresolved || 0} pozostało nierozpoznanych — sprawdź tekst.`,
+                        : `Odczytano wszystko, co było możliwe, z ${pageCount} ${pageCount === 1 ? 'strony' : 'stron'} obrazu. Wielkość liter nie wpływała na dopasowanie. ${visualInfo?.suggestions || 0} niepewnych dopasowań i ${visualInfo?.unresolved || 0} braków oznaczono bezpośrednio w tekście${visualInfo?.failedPages ? `; pominięto ${visualInfo.failedPages} nieczytelnych stron, pozostawiając znaczniki` : ''}. Dekodowanie dotarło do końca dokumentu.`,
                     exact ? 'success' : 'warning'
                 );
             } catch (error) {
