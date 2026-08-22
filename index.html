@@ -290,9 +290,61 @@
         }
 
         /* ============ GALLERY ============ */
+        .gallery-search {
+            position: relative;
+            margin: -2px 0 8px;
+        }
+        .gallery-search input {
+            width: 100%;
+            min-height: 46px;
+            padding: 11px 44px 11px 15px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            outline: none;
+            color: var(--text);
+            background: #252538;
+            font: 600 0.9rem/1.2 inherit;
+            transition: border-color var(--transition), box-shadow var(--transition);
+        }
+        .gallery-search input:focus {
+            border-color: var(--gold);
+            box-shadow: 0 0 20px rgba(212, 164, 74, 0.15);
+        }
+        .gallery-search input::placeholder {
+            color: var(--text-muted);
+        }
+        .gallery-search-clear {
+            position: absolute;
+            top: 50%;
+            right: 8px;
+            width: 32px;
+            height: 32px;
+            padding: 0;
+            transform: translateY(-50%);
+            border: 0;
+            border-radius: 6px;
+            color: var(--text-muted);
+            background: transparent;
+            font: 700 1.15rem/32px ui-monospace, "SFMono-Regular", Consolas, monospace;
+            cursor: pointer;
+        }
+        .gallery-search-clear:hover,
+        .gallery-search-clear:focus-visible {
+            color: var(--text);
+            background: rgba(93, 244, 255, 0.08);
+            outline: none;
+        }
+        .gallery-summary {
+            min-height: 20px;
+            margin: 0 0 10px;
+            color: var(--text-muted);
+            font-size: 0.76rem;
+            line-height: 1.4;
+            text-align: center;
+        }
         .gallery {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+            grid-template-columns: repeat(3, minmax(0, 1fr));
             gap: 12px;
             max-height: 420px;
             overflow-y: auto;
@@ -1073,6 +1125,24 @@
             padding: 5px 5px 5px 0;
         }
 
+        .gallery-search input {
+            border-color: rgba(93, 244, 255, 0.24);
+            color: #dffcff;
+            background: rgba(1, 10, 20, 0.74);
+            font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+        }
+
+        .gallery-search input:focus {
+            border-color: var(--gold);
+            box-shadow: 0 0 0 3px rgba(93, 244, 255, 0.06), 0 0 18px rgba(93, 244, 255, 0.1);
+        }
+
+        .gallery-summary {
+            color: #7fa8b2;
+            font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+            letter-spacing: 0.025em;
+        }
+
         .gallery-card,
         .sentence-token {
             border: 1px solid rgba(93, 244, 255, 0.12);
@@ -1211,7 +1281,7 @@
                     <input type="text" id="wordInput" placeholder="Wpisz słowo..." autocomplete="off" />
                     <button class="btn btn-primary" id="generateBtn">Generuj</button>
                 </div>
-                <p class="generator-hint">Każde kliknięcie tworzy nowy wariant. Do bazy trafia dopiero znak, który zapiszesz.</p>
+                <p class="generator-hint">Każde kliknięcie tworzy nowy wariant. Im dłuższe słowo, tym bardziej rozbudowany znak. Do bazy trafia dopiero wariant, który zapiszesz.</p>
                 <div class="canvas-wrapper">
                     <div class="canvas-frame">
                         <canvas id="mainCanvas" width="520" height="520"></canvas>
@@ -1234,6 +1304,17 @@
                     <span class="icon">02</span> Baza Słów
                     <span class="word-count" id="wordCount">0 słów</span>
                 </h2>
+                <div class="gallery-search">
+                    <input
+                        type="search"
+                        id="gallerySearch"
+                        placeholder="Szukaj w całej bazie..."
+                        autocomplete="off"
+                        aria-label="Szukaj słowa w całej bazie"
+                    />
+                    <button class="gallery-search-clear" id="gallerySearchClear" type="button" aria-label="Wyczyść wyszukiwanie" hidden>×</button>
+                </div>
+                <div class="gallery-summary" id="gallerySummary" aria-live="polite"></div>
                 <div class="gallery" id="gallery">
                     <div class="gallery-empty">Baza jest pusta.<br>Wygeneruj i zapisz pierwsze słowo!</div>
                 </div>
@@ -1353,17 +1434,31 @@
         // Dzięki temu aktualizacja generatora nie zmienia samoczynnie znaków,
         // które użytkownik wcześniej wybrał i zapisał.
         const GLYPH_DATA_VERSION = 3;
-        const GENERATOR_VERSION = 7;
-        const GLYPH_TEMPLATE_COUNT = 32;
+        const GENERATOR_VERSION = 9;
         const GLYPH_STRUCTURE_MODES = 5;
 
-        function getGlyphStructureId(word, variantSeed = null) {
-            const normalizedWord = word.trim().toLocaleLowerCase('pl-PL');
-            const wordSeed = hashString(normalizedWord);
-            const seed = variantSeed === null || variantSeed === undefined
-                ? wordSeed
-                : mixSeeds(wordSeed, variantSeed >>> 0);
-            return seed % (GLYPH_TEMPLATE_COUNT * GLYPH_STRUCTURE_MODES);
+        /**
+         * Sygnatura opisuje rzeczywistą konstrukcję gotowego znaku, a nie tylko
+         * fragment ziarna losowego. Dzięki temu kolejne kliknięcia „Generuj”
+         * nie pokazują tej samej figury różniącej się wyłącznie drobnym akcentem.
+         */
+        function getGlyphStructureId(strokes) {
+            const pointBucket = ([x, y]) => `${Math.floor(x * 5)},${Math.floor(y * 5)}`;
+            const directionCode = (first, second) => {
+                const dx = Math.sign(second[0] - first[0]);
+                const dy = Math.sign(second[1] - first[1]);
+                return `${dx}:${dy}`;
+            };
+
+            return strokes.map(stroke => {
+                if (stroke.kind === 'line' || stroke.kind === 'polyline') {
+                    const directions = stroke.points.slice(1).map((point, index) => (
+                        directionCode(stroke.points[index], point)
+                    ));
+                    return `${stroke.role}:${stroke.kind}:${pointBucket(stroke.points[0])}:${directions.join('/')}`;
+                }
+                return `${stroke.role}:${stroke.kind}:${pointBucket(stroke.center)}`;
+            }).join('|');
         }
 
         /**
@@ -1693,7 +1788,7 @@
          * to wyłącznie odbicie i obrót o wielokrotność 90°. Nie stosujemy
          * swobodnej rotacji, nierównej skali osi ani wyginania odcinków.
          */
-        function generateGlyphStrokes(word, variantSeed = null) {
+        function generateGlyphStrokesV7(word, variantSeed = null) {
             const normalizedWord = word.trim().toLocaleLowerCase('pl-PL');
             const wordSeed = hashString(normalizedWord);
             const seed = variantSeed === null || variantSeed === undefined
@@ -1907,6 +2002,357 @@
             return strokes;
         }
 
+        /**
+         * Generator V9 — gramatyka znaków odtworzona z materiału wzorcowego.
+         * Rdzeń jest krótki (zwykle 2–4 odcinki), pierścienie występują tylko
+         * na zakończeniach, a osobne kreski i kropki pełnią rolę diakrytyków.
+         * Wszystkie odcinki pozostają poziome, pionowe albo pod kątem ±45°.
+         */
+        function generateGlyphStrokes(word, variantSeed = null) {
+            const normalizedWord = word.trim().toLocaleLowerCase('pl-PL');
+            const wordSeed = hashString(normalizedWord);
+            const seed = variantSeed === null || variantSeed === undefined
+                ? wordSeed
+                : mixSeeds(wordSeed, variantSeed >>> 0);
+            const rng = mulberry32(seed);
+            const characterCount = [...normalizedWord].filter(character => /[\p{L}\p{N}]/u.test(character)).length;
+            const complexityLevel = characterCount <= 1
+                ? 0
+                : (characterCount <= 3 ? 1 : (characterCount <= 6 ? 2 : (characterCount <= 9 ? 3 : 4)));
+            const width = 3.40 + rng() * 0.36;
+            const strokes = [];
+
+            const line = (a, b, customWidth = width, role = 'core') => ({
+                kind: 'line', points: [a, b], width: customWidth, role
+            });
+            const path = (points, customWidth = width, role = 'core') => ({
+                kind: 'polyline', points, width: customWidth, role
+            });
+            const ring = (center, radius = 0.031, customWidth = width) => ({
+                kind: 'circle', center, radius, width: customWidth, role: 'marker'
+            });
+            const dot = (center, radius = 0.0115) => ({
+                kind: 'dot', center, radius, role: 'marker'
+            });
+
+            // Motywy odpowiadają repertuarowi widocznemu na fotografii:
+            // maszty, haki, trójniki, rozwidlenia, otwarte trójkąty i zygzaki.
+            const templates = [
+                [[[-3,2],[2,-3]]],
+                [[[-3,2],[2,2],[2,-3]]],
+                [[[-3,3],[1,-1],[3,-1]]],
+                [[[-3,-2],[0,1],[3,-2]]],
+                [[[-3,2],[0,-1],[3,2]], [[-3,2],[3,2]]],
+                [[[-3,2],[-3,-2],[1,2]]],
+                [[[-3,-2],[0,1],[3,-2]], [[0,1],[0,3]]],
+                [[[-3,-2],[3,-2]], [[0,-2],[0,3]]],
+                [[[-2,-3],[-2,3]], [[-2,0],[1,-3]], [[-2,0],[1,3]]],
+                [[[-3,3],[3,-3]], [[0,0],[2,2]]],
+                [[[-3,3],[3,-3]], [[1,-1],[3,1]]],
+                [[[0,-3],[0,3]], [[0,0],[3,0]]],
+                [[[0,-3],[0,3]], [[0,0],[3,-3]]],
+                [[[-3,-2],[3,-2]], [[0,-2],[3,1]]],
+                [[[-3,-2],[3,-2]], [[2,-2],[2,3]]],
+                [[[-3,-2],[0,-2],[-2,0],[2,0]]],
+                [[[-3,-2],[2,-2],[-2,2],[3,2]]],
+                [[[-2,-3],[2,-3],[-1,0],[2,3]]],
+                [[[0,-3],[0,3]], [[0,-2],[3,-2]], [[0,0],[2,0]]],
+                [[[-3,-2],[3,-2]], [[-2,-2],[-2,3]], [[2,-2],[2,1]]],
+                [[[-3,-2],[-3,2],[2,2],[2,-1]]],
+                [[[-3,-2],[0,1],[-3,4]], [[0,1],[3,1]]],
+                [[[-3,0],[0,0],[3,-3]], [[0,0],[3,3]]],
+                [[[-3,2],[0,-1],[3,2]], [[0,-1],[0,2]]],
+                [[[-3,-3],[3,3]], [[-1,-1],[-1,2],[2,2]]],
+                [[[0,-3],[0,3]], [[0,-2],[2,-2]], [[0,1],[2,1]]],
+                [[[-3,3],[0,0],[3,3]], [[0,0],[0,-3]]],
+                [[[-3,-3],[0,0],[-3,3]], [[0,0],[3,0]]],
+                [[[-3,2],[1,-2],[3,-2]], [[1,-2],[1,2]]],
+                [[[-3,-2],[0,-2],[0,1],[3,1]]],
+                [[[-3,1],[0,-2],[3,1]]],
+                [[[-3,-2],[0,1],[3,-2]], [[-1,0],[1,0]]]
+            ];
+
+            const directions = [
+                [1,0], [1,1], [0,1], [-1,1],
+                [-1,0], [-1,-1], [0,-1], [1,-1]
+            ];
+            const templateSegmentCounts = templates.map(paths => paths.reduce(
+                (sum, points) => sum + Math.max(0, points.length - 1),
+                0
+            ));
+            const complexityRanges = [[1,1], [1,2], [2,3], [3,3], [3,3]];
+            const [minimumSegments, maximumSegments] = complexityRanges[complexityLevel];
+            const eligibleTemplateIndices = templateSegmentCounts
+                .map((count, index) => ({ count, index }))
+                .filter(item => item.count >= minimumSegments && item.count <= maximumSegments)
+                .map(item => item.index);
+            const templatePool = eligibleTemplateIndices.length > 0
+                ? eligibleTemplateIndices
+                : templates.map((_, index) => index);
+            const templateIndex = templatePool[(seed >>> 2) % templatePool.length];
+            const structureMode = (seed >>> 5) % (complexityLevel + 1);
+            const gridPaths = templates[templateIndex].map(points => points.map(point => [...point]));
+
+            const normalizeDirection = ([dx, dy]) => [Math.sign(dx), Math.sign(dy)];
+            const endpointDescriptors = () => gridPaths.flatMap((points, pathIndex) => [
+                { point: points[0], neighbour: points[1], pathIndex, atStart: true },
+                { point: points[points.length - 1], neighbour: points[points.length - 2], pathIndex, atStart: false }
+            ]);
+            const descriptors = endpointDescriptors();
+            const selectedEndpoint = descriptors[(seed >>> 11) % descriptors.length];
+            const continuationDirection = normalizeDirection([
+                selectedEndpoint.point[0] - selectedEndpoint.neighbour[0],
+                selectedEndpoint.point[1] - selectedEndpoint.neighbour[1]
+            ]);
+
+            // Dodatki nie tworzą nowych wielokątów. Są to krótkie przedłużenia,
+            // pojedyncze gałęzie i haki spotykane w materiale referencyjnym.
+            if (structureMode === 1) {
+                gridPaths.push([
+                    selectedEndpoint.point,
+                    [
+                        selectedEndpoint.point[0] + continuationDirection[0] * 1.25,
+                        selectedEndpoint.point[1] + continuationDirection[1] * 1.25
+                    ]
+                ]);
+            } else if (structureMode === 2) {
+                const anchors = gridPaths.flat();
+                const anchor = anchors.reduce((best, point) => (
+                    Math.hypot(point[0], point[1]) < Math.hypot(best[0], best[1]) ? point : best
+                ), anchors[0]);
+                const branchDirection = directions[(seed >>> 17) & 7];
+                gridPaths.push([
+                    anchor,
+                    [anchor[0] + branchDirection[0] * 1.35, anchor[1] + branchDirection[1] * 1.35]
+                ]);
+            } else if (structureMode === 3) {
+                const perpendicular = [-continuationDirection[1], continuationDirection[0]];
+                gridPaths.push([
+                    selectedEndpoint.point,
+                    [
+                        selectedEndpoint.point[0] + perpendicular[0] * 1.10,
+                        selectedEndpoint.point[1] + perpendicular[1] * 1.10
+                    ]
+                ]);
+            } else if (structureMode === 4) {
+                const perpendicular = [-continuationDirection[1], continuationDirection[0]];
+                const corner = [
+                    selectedEndpoint.point[0] + continuationDirection[0] * 0.95,
+                    selectedEndpoint.point[1] + continuationDirection[1] * 0.95
+                ];
+                gridPaths.push([
+                    selectedEndpoint.point,
+                    corner,
+                    [corner[0] + perpendicular[0] * 0.82, corner[1] + perpendicular[1] * 0.82]
+                ]);
+            }
+
+            // Długie słowa otrzymują dodatkowe, ale nadal krótkie i regularne
+            // gałęzie. Liczba elementów rośnie więc wraz z liczbą liter.
+            const extraBranchesByComplexity = [0, 0, 1, 1, 2];
+            const longWordDetails = complexityLevel === 4
+                ? Math.min(2, Math.floor(Math.max(0, characterCount - 10) / 4))
+                : 0;
+            const extraBranchCount = extraBranchesByComplexity[complexityLevel] + longWordDetails;
+            const extraBranchAnchors = gridPaths.flat().map(point => [...point]);
+            for (let branchIndex = 0; branchIndex < extraBranchCount; branchIndex++) {
+                const branchAnchor = extraBranchAnchors[
+                    (seed >>> (10 + branchIndex * 3)) % extraBranchAnchors.length
+                ];
+                const branchDirection = directions[(seed >>> (16 + branchIndex * 3)) & 7];
+                // Gałęzie mają czytelną długość. Poprzednia wartość 0.88
+                // tworzyła niemal niewidoczne „ząbki”, których nie ma we wzorcu.
+                const branchLength = 1.55 + ((seed >>> (7 + branchIndex * 2)) & 3) * 0.22;
+                gridPaths.push([
+                    branchAnchor,
+                    [
+                        branchAnchor[0] + branchDirection[0] * branchLength,
+                        branchAnchor[1] + branchDirection[1] * branchLength
+                    ]
+                ]);
+            }
+
+            const quarterTurns = (seed >>> 20) & 3;
+            const mirror = ((seed >>> 22) & 1) === 1;
+            const gridStepsByComplexity = [0.076, 0.074, 0.071, 0.064, 0.059];
+            const preferredGridStep = gridStepsByComplexity[complexityLevel] + ((seed >>> 23) & 1) * 0.001;
+            const maximumGridCoordinate = Math.max(
+                1,
+                ...gridPaths.flat().flatMap(point => [Math.abs(point[0]), Math.abs(point[1])])
+            );
+            // Nietypowo długa gałąź zmniejsza cały znak zamiast wychodzić poza
+            // pole. Pozostaje co najmniej 12% bezpiecznego marginesu na akcenty.
+            const gridStep = Math.min(preferredGridStep, 0.38 / maximumGridCoordinate);
+            const transformGridPoint = ([sourceX, sourceY]) => {
+                let x = mirror ? -sourceX : sourceX;
+                let y = sourceY;
+                for (let turn = 0; turn < quarterTurns; turn++) [x, y] = [-y, x];
+                return [0.5 + x * gridStep, 0.5 + y * gridStep];
+            };
+
+            gridPaths.forEach(points => strokes.push(path(points.map(transformGridPoint))));
+
+            const vertexDegrees = new Map();
+            const vertexKey = point => point.map(value => Number(value).toFixed(4)).join(',');
+            gridPaths.forEach(points => {
+                for (let pointIndex = 1; pointIndex < points.length; pointIndex++) {
+                    const firstKey = vertexKey(points[pointIndex - 1]);
+                    const secondKey = vertexKey(points[pointIndex]);
+                    vertexDegrees.set(firstKey, (vertexDegrees.get(firstKey) || 0) + 1);
+                    vertexDegrees.set(secondKey, (vertexDegrees.get(secondKey) || 0) + 1);
+                }
+            });
+
+            const exposedDescriptors = endpointDescriptors().filter(({ point }) => (
+                vertexDegrees.get(vertexKey(point)) === 1
+            ));
+            const ringDescriptors = exposedDescriptors.length > 0 ? exposedDescriptors : endpointDescriptors();
+            const transformedEndpoints = [];
+            const endpointKeys = new Set();
+            ringDescriptors.forEach(({ point }) => {
+                const transformed = transformGridPoint(point);
+                const key = transformed.map(value => value.toFixed(5)).join(',');
+                if (!endpointKeys.has(key)) {
+                    endpointKeys.add(key);
+                    transformedEndpoints.push(transformed);
+                }
+            });
+            const firstRingIndex = (seed >>> 7) % transformedEndpoints.length;
+            const secondRingIndex = (firstRingIndex + 1 + ((seed >>> 13) % Math.max(1, transformedEndpoints.length - 1))) % transformedEndpoints.length;
+            const rawMarkerPattern = (seed >>> 24) & 7;
+            let ringCount = 0;
+            if (complexityLevel === 0) ringCount = rawMarkerPattern < 4 ? 1 : 0;
+            if (complexityLevel === 1) ringCount = rawMarkerPattern < 4 ? 1 : 0;
+            if (complexityLevel === 2) ringCount = rawMarkerPattern < 4 ? 1 : (rawMarkerPattern === 4 ? 2 : 0);
+            if (complexityLevel === 3) ringCount = rawMarkerPattern < 4 ? 1 : (rawMarkerPattern === 4 ? 2 : 0);
+            if (complexityLevel === 4) ringCount = rawMarkerPattern < 4 ? 1 : (rawMarkerPattern < 6 ? 2 : 0);
+
+            if (ringCount >= 1) {
+                strokes.push(ring(transformedEndpoints[firstRingIndex], 0.030 + rng() * 0.004));
+            }
+            if (ringCount >= 2) {
+                if (secondRingIndex !== firstRingIndex) {
+                    strokes.push(ring(transformedEndpoints[secondRingIndex], 0.027 + rng() * 0.003));
+                }
+            }
+
+            const corePoints = gridPaths.flat().map(transformGridPoint);
+            const xs = corePoints.map(point => point[0]);
+            const ys = corePoints.map(point => point[1]);
+            const bounds = {
+                minX: Math.min(...xs), maxX: Math.max(...xs),
+                minY: Math.min(...ys), maxY: Math.max(...ys)
+            };
+            const accentSide = (seed >>> 15) & 3;
+            const sideCenters = [
+                [Math.max(0.18, bounds.minX - 0.085), (bounds.minY + bounds.maxY) / 2],
+                [Math.min(0.82, bounds.maxX + 0.085), (bounds.minY + bounds.maxY) / 2],
+                [(bounds.minX + bounds.maxX) / 2, Math.max(0.18, bounds.minY - 0.085)],
+                [(bounds.minX + bounds.maxX) / 2, Math.min(0.82, bounds.maxY + 0.085)]
+            ];
+            const [accentX, accentY] = sideCenters[accentSide];
+            const accentDirection = directions[(seed >>> 9) & 7];
+            const accentLength = Math.hypot(accentDirection[0], accentDirection[1]);
+            const ux = accentDirection[0] / accentLength;
+            const uy = accentDirection[1] / accentLength;
+            const nx = -uy;
+            const ny = ux;
+            const accentRoll = (seed >>> 27) & 7;
+            const accentPrograms = [
+                ringCount > 0 ? [0,0,0,0,0,0,0,0] : [2,2,4,4,6,6,7,7],
+                [0,0,2,2,4,5,6,7],
+                [0,2,2,3,4,5,6,7],
+                [2,2,3,3,4,5,6,7],
+                [2,3,3,4,4,5,6,7]
+            ];
+            let accentType = accentPrograms[complexityLevel][accentRoll];
+            if (ringCount === 0 && accentType === 0) accentType = 2;
+
+            if (accentType === 2 || accentType === 3) {
+                const barCount = complexityLevel === 0
+                    ? 2
+                    : (complexityLevel === 1 ? 2 + ((seed >>> 6) & 1) : 3 + ((seed >>> 6) & 1));
+                const barLength = complexityLevel <= 1 ? 0.095 : 0.112;
+                const gap = complexityLevel <= 1 ? 0.024 : 0.027;
+                for (let index = 0; index < barCount; index++) {
+                    const offset = (index - (barCount - 1) / 2) * gap;
+                    const centerX = accentX + nx * offset;
+                    const centerY = accentY + ny * offset;
+                    strokes.push(line(
+                        [centerX - ux * barLength / 2, centerY - uy * barLength / 2],
+                        [centerX + ux * barLength / 2, centerY + uy * barLength / 2],
+                        width * 0.94,
+                        'marker'
+                    ));
+                }
+            } else if (accentType === 4) {
+                const dotCount = complexityLevel === 0
+                    ? 2
+                    : (complexityLevel === 1 ? 2 + ((seed >>> 6) & 1) : 3 + ((seed >>> 6) & 1));
+                for (let index = 0; index < dotCount; index++) {
+                    const offset = (index - (dotCount - 1) / 2) * 0.029;
+                    strokes.push(dot([accentX + ux * offset, accentY + uy * offset]));
+                }
+            } else if (accentType === 5) {
+                const arm = complexityLevel <= 1 ? 0.052 : 0.064;
+                strokes.push(path([
+                    [accentX - ux * arm, accentY - uy * arm],
+                    [accentX, accentY],
+                    [accentX + nx * arm, accentY + ny * arm]
+                ], width * 0.94, 'marker'));
+            } else if (accentType === 6) {
+                strokes.push(ring([accentX, accentY], complexityLevel <= 1 ? 0.027 : 0.030));
+            } else if (accentType === 7) {
+                const halfLength = complexityLevel <= 1 ? 0.045 : 0.055;
+                strokes.push(line(
+                    [accentX - ux * halfLength, accentY - uy * halfLength],
+                    [accentX + ux * halfLength, accentY + uy * halfLength],
+                    width * 0.94,
+                    'marker'
+                ));
+            }
+
+            if (complexityLevel === 4) {
+                const [secondAccentX, secondAccentY] = sideCenters[(accentSide + 2) % 4];
+                const secondDirection = directions[((seed >>> 18) + 2) & 7];
+                const secondLength = Math.hypot(secondDirection[0], secondDirection[1]);
+                const secondUx = secondDirection[0] / secondLength;
+                const secondUy = secondDirection[1] / secondLength;
+                if (((seed >>> 8) & 1) === 0) {
+                    for (let index = -1; index <= 1; index++) {
+                        strokes.push(dot([
+                            secondAccentX + secondUx * index * 0.030,
+                            secondAccentY + secondUy * index * 0.030
+                        ]));
+                    }
+                } else {
+                    const secondNx = -secondUy;
+                    const secondNy = secondUx;
+                    for (let index = -1; index <= 1; index++) {
+                        const offset = index * 0.019;
+                        strokes.push(line(
+                            [
+                                secondAccentX - secondUx * 0.052 + secondNx * offset,
+                                secondAccentY - secondUy * 0.052 + secondNy * offset
+                            ],
+                            [
+                                secondAccentX + secondUx * 0.052 + secondNx * offset,
+                                secondAccentY + secondUy * 0.052 + secondNy * offset
+                            ],
+                            width * 0.94,
+                            'marker'
+                        ));
+                    }
+                }
+            }
+
+            // Każdy znak ma co najmniej jeden czytelny wyróżnik.
+            if (!strokes.some(stroke => stroke.role === 'marker')) {
+                strokes.push(ring(transformedEndpoints[firstRingIndex], 0.031));
+            }
+            return strokes;
+        }
+
         // =====================================================
         // ==================== CANVAS RENDERER ====================
         // =====================================================
@@ -1991,7 +2437,7 @@
          * Kreski są w znormalizowanych współrzędnych [0,1].
          */
         function drawStroke(ctx, stroke, w, h, progress = 1) {
-            const canvasScale = Math.min(w, h) / 220;
+            const canvasScale = Math.min(w, h) / 190;
 
             // Aktualny format. Pojedyncza komenda jest jednym logicznym pociągnięciem.
             if (stroke.kind) {
@@ -2309,6 +2755,9 @@
         const canvasCaption = document.getElementById('canvasCaption');
         const statusMessage = document.getElementById('statusMessage');
         const gallery = document.getElementById('gallery');
+        const gallerySearch = document.getElementById('gallerySearch');
+        const gallerySearchClear = document.getElementById('gallerySearchClear');
+        const gallerySummary = document.getElementById('gallerySummary');
         const wordCount = document.getElementById('wordCount');
         const exportBtn = document.getElementById('exportBtn');
         const importBtn = document.getElementById('importBtn');
@@ -2343,6 +2792,7 @@
         let variantNonce = 0;
         const recentVariantSignatures = new Map();
         const recentVariantStructures = new Map();
+        const HOME_GALLERY_LIMIT = 9;
 
         function nextVariantSeed(word) {
             variantNonce = (variantNonce + 1) >>> 0;
@@ -2370,14 +2820,14 @@
 
             for (let attempt = 0; attempt < 40; attempt++) {
                 const variantSeed = nextVariantSeed(key);
-                const structureId = getGlyphStructureId(key, variantSeed);
+                const strokes = generateGlyphStrokes(key, variantSeed);
+                const structureId = getGlyphStructureId(strokes);
 
                 // Nie pokazuj ponownie tej samej rodziny konstrukcyjnej wśród
                 // ostatnich wariantów danego słowa. To eliminuje sytuację, w
                 // której zmienia się tylko kąt lub pojedyncza kropka.
                 if (recentStructures.includes(structureId)) continue;
 
-                const strokes = generateGlyphStrokes(key, variantSeed);
                 const signature = JSON.stringify(strokes);
                 if (!recent.includes(signature)) {
                     recent.push(signature);
@@ -2394,7 +2844,7 @@
             // zmianę materiału wejściowego przy kolejnym kliknięciu.
             const variantSeed = nextVariantSeed(`${key}-${variantNonce}`);
             const strokes = generateGlyphStrokes(key, variantSeed);
-            const structureId = getGlyphStructureId(key, variantSeed);
+            const structureId = getGlyphStructureId(strokes);
             recent.push(JSON.stringify(strokes));
             recentStructures.push(structureId);
             if (recent.length > 48) recent.shift();
@@ -2472,17 +2922,58 @@
             return div.innerHTML;
         }
 
+        function getGalleryEntries(query = '') {
+            const normalizedQuery = normalizeDictionaryKey(query);
+            const newestFirst = db.words
+                .map((entry, index) => ({
+                    entry,
+                    index,
+                    timestamp: Date.parse(entry.timestamp || '') || 0,
+                }))
+                .sort((left, right) => (
+                    right.timestamp - left.timestamp || right.index - left.index
+                ))
+                .map(item => item.entry);
+
+            if (normalizedQuery) {
+                return newestFirst.filter(entry => (
+                    normalizeDictionaryKey(entry.word).includes(normalizedQuery)
+                ));
+            }
+
+            return newestFirst.slice(0, HOME_GALLERY_LIMIT);
+        }
+
         function renderGallery() {
             const galleryEl = gallery;
+            const query = gallerySearch.value.trim();
+            const visibleEntries = getGalleryEntries(query);
             galleryEl.innerHTML = '';
+            gallerySearchClear.hidden = query.length === 0;
 
             if (db.words.length === 0) {
+                gallerySummary.textContent = '';
                 galleryEl.innerHTML =
                     '<div class="gallery-empty">Baza jest pusta.<br>Wygeneruj i zapisz pierwsze słowo!</div>';
                 return;
             }
 
-            db.words.forEach(entry => {
+            if (visibleEntries.length === 0) {
+                gallerySummary.textContent = `0 wyników z ${db.words.length}`;
+                galleryEl.innerHTML =
+                    `<div class="gallery-empty">Brak słów pasujących do „${escapeHtml(query)}”.</div>`;
+                return;
+            }
+
+            if (query) {
+                gallerySummary.textContent = `Znaleziono ${visibleEntries.length} z ${db.words.length} zapisanych słów`;
+            } else if (db.words.length > HOME_GALLERY_LIMIT) {
+                gallerySummary.textContent = `9 ostatnich z ${db.words.length} • pozostałe znajdziesz przez wyszukiwarkę`;
+            } else {
+                gallerySummary.textContent = `${visibleEntries.length} ostatnio zapisanych`;
+            }
+
+            visibleEntries.forEach(entry => {
                 const card = document.createElement('div');
                 card.className = 'gallery-card fade-in';
                 card.title = 'Kliknij, aby zobaczyć znak';
@@ -2927,11 +3418,11 @@
         const SENTENCE_FORMAT_VERSION = 1;
         const SENTENCE_METADATA_KEY = 'JOSentence';
         const SENTENCE_MAX_TOKENS = 100;
-        const BINARY_MAP_SIZE = 32;
+        const BINARY_MAP_SIZE = 40;
         const BINARY_INK_THRESHOLD = 188;
-        const BINARY_SHORTLIST_SIZE = 48;
-        const BINARY_ACCEPT_SCORE = 0.56;
-        const FREEFORM_BINARY_ACCEPT_SCORE = 0.46;
+        const BINARY_SHORTLIST_SIZE = 96;
+        const BINARY_ACCEPT_SCORE = 0.58;
+        const FREEFORM_BINARY_ACCEPT_SCORE = 0.50;
         const FREEFORM_MAX_DIMENSION = 1800;
         const BINARY_PUNCTUATION = ['.', ',', '!', '?', ';', ':', '…', '-', '–', '—', '(', ')', '[', ']', '{', '}', '„', '”', '«', '»', '"', "'", '/'];
         const binaryGlyphCache = new Map();
@@ -3431,7 +3922,7 @@
         function getBinaryFeatures(bits) {
             const cells = 8;
             const cellSize = BINARY_MAP_SIZE / cells;
-            const features = new Uint8Array(cells * cells);
+            const features = new Uint16Array(cells * cells);
             for (let y = 0; y < BINARY_MAP_SIZE; y++) {
                 for (let x = 0; x < BINARY_MAP_SIZE; x++) {
                     if (!bits[y * BINARY_MAP_SIZE + x]) continue;
@@ -3476,6 +3967,14 @@
                     crop.width,
                     crop.height
                 );
+
+                // Kafelek eksportowanego zdania ma delikatną ramkę. Ramka służy
+                // wyłącznie układowi strony i nie jest częścią symbolu.
+                const frameMargin = Math.max(2, Math.ceil(Math.min(crop.width, crop.height) * 0.035));
+                cropCtx.fillRect(0, 0, crop.width, frameMargin);
+                cropCtx.fillRect(0, crop.height - frameMargin, crop.width, frameMargin);
+                cropCtx.fillRect(0, 0, frameMargin, crop.height);
+                cropCtx.fillRect(crop.width - frameMargin, 0, frameMargin, crop.height);
             }
 
             const pixels = cropCtx.getImageData(0, 0, crop.width, crop.height).data;
@@ -3499,7 +3998,13 @@
 
             if (rawCount === 0 || maxX < minX || maxY < minY) {
                 const emptyBits = new Uint8Array(BINARY_MAP_SIZE * BINARY_MAP_SIZE);
-                return { bits: emptyBits, count: 0, features: getBinaryFeatures(emptyBits) };
+                return {
+                    bits: emptyBits,
+                    dilatedBits: emptyBits.slice(),
+                    count: 0,
+                    features: getBinaryFeatures(emptyBits),
+                    aspect: 1,
+                };
             }
 
             const normalized = document.createElement('canvas');
@@ -3544,13 +4049,43 @@
                     count++;
                 }
             }
-            return { bits, count, features: getBinaryFeatures(bits) };
+            return {
+                bits,
+                dilatedBits: dilateBinaryBits(bits),
+                count,
+                features: getBinaryFeatures(bits),
+                aspect: boxWidth / Math.max(1, boxHeight),
+            };
+        }
+
+        function dilateBinaryBits(bits, radius = 1) {
+            const output = new Uint8Array(bits.length);
+            for (let y = 0; y < BINARY_MAP_SIZE; y++) {
+                for (let x = 0; x < BINARY_MAP_SIZE; x++) {
+                    if (!bits[y * BINARY_MAP_SIZE + x]) continue;
+                    for (let offsetY = -radius; offsetY <= radius; offsetY++) {
+                        const targetY = y + offsetY;
+                        if (targetY < 0 || targetY >= BINARY_MAP_SIZE) continue;
+                        for (let offsetX = -radius; offsetX <= radius; offsetX++) {
+                            const targetX = x + offsetX;
+                            if (targetX < 0 || targetX >= BINARY_MAP_SIZE) continue;
+                            output[targetY * BINARY_MAP_SIZE + targetX] = 1;
+                        }
+                    }
+                }
+            }
+            return output;
         }
 
         function binaryFeatureDistance(left, right) {
-            let distance = Math.abs(left.count - right.count) * 1.5;
+            const leftCount = Math.max(1, left.count);
+            const rightCount = Math.max(1, right.count);
+            let distance = Math.abs(Math.log(leftCount / rightCount)) * 90;
+            distance += Math.abs(Math.log(Math.max(0.05, left.aspect) / Math.max(0.05, right.aspect))) * 34;
             for (let i = 0; i < left.features.length; i++) {
-                distance += Math.abs(left.features[i] - right.features[i]);
+                distance += Math.abs(
+                    left.features[i] / leftCount - right.features[i] / rightCount
+                ) * 820;
             }
             return distance;
         }
@@ -3558,6 +4093,8 @@
         function shiftedBinaryScore(left, right, shiftX, shiftY) {
             if (left.count === 0 || right.count === 0) return 0;
             let intersection = 0;
+            let leftNearRight = 0;
+            let rightNearLeft = 0;
             for (let y = 0; y < BINARY_MAP_SIZE; y++) {
                 const rightY = y + shiftY;
                 if (rightY < 0 || rightY >= BINARY_MAP_SIZE) continue;
@@ -3566,15 +4103,34 @@
                     const rightX = x + shiftX;
                     if (rightX < 0 || rightX >= BINARY_MAP_SIZE) continue;
                     if (right.bits[rightY * BINARY_MAP_SIZE + rightX]) intersection++;
+                    if (right.dilatedBits[rightY * BINARY_MAP_SIZE + rightX]) leftNearRight++;
                 }
             }
-            return (2 * intersection) / (left.count + right.count);
+
+            for (let y = 0; y < BINARY_MAP_SIZE; y++) {
+                const leftY = y - shiftY;
+                if (leftY < 0 || leftY >= BINARY_MAP_SIZE) continue;
+                for (let x = 0; x < BINARY_MAP_SIZE; x++) {
+                    if (!right.bits[y * BINARY_MAP_SIZE + x]) continue;
+                    const leftX = x - shiftX;
+                    if (leftX < 0 || leftX >= BINARY_MAP_SIZE) continue;
+                    if (left.dilatedBits[leftY * BINARY_MAP_SIZE + leftX]) rightNearLeft++;
+                }
+            }
+
+            const exactDice = (2 * intersection) / (left.count + right.count);
+            const nearRecall = leftNearRight / left.count;
+            const nearPrecision = rightNearLeft / right.count;
+            const tolerantF1 = nearRecall + nearPrecision > 0
+                ? (2 * nearRecall * nearPrecision) / (nearRecall + nearPrecision)
+                : 0;
+            return exactDice * 0.58 + tolerantF1 * 0.42;
         }
 
         function binaryMapScore(left, right) {
             let best = 0;
-            for (let shiftY = -1; shiftY <= 1; shiftY++) {
-                for (let shiftX = -1; shiftX <= 1; shiftX++) {
+            for (let shiftY = -2; shiftY <= 2; shiftY++) {
+                for (let shiftX = -2; shiftX <= 2; shiftX++) {
                     best = Math.max(best, shiftedBinaryScore(left, right, shiftX, shiftY));
                 }
             }
@@ -4018,6 +4574,17 @@
             return 'low';
         }
 
+        function isReliableBinaryMatch(match, scoreThreshold) {
+            if (!match || match.score < scoreThreshold) return false;
+            // Im większy słownik, tym więcej bardzo podobnych kandydatów.
+            // Przy małym marginesie bezpieczniej zwrócić „nierozpoznany” niż
+            // automatycznie wpisać do zdania błędne słowo.
+            const minimumMargin = db.words.length >= 5000
+                ? 0.025
+                : (db.words.length >= 1000 ? 0.016 : 0.008);
+            return match.margin >= minimumMargin;
+        }
+
         async function recognizeFreeformSentenceByBinaryMap(canvas) {
             if (db.words.length === 0) {
                 throw new Error('Baza słów jest pusta — silnik nie ma wzorców do porównania.');
@@ -4061,7 +4628,7 @@
                     return;
                 }
 
-                if (!glyphMatch || glyphMatch.score < FREEFORM_BINARY_ACCEPT_SCORE) {
+                if (!isReliableBinaryMatch(glyphMatch, FREEFORM_BINARY_ACCEPT_SCORE)) {
                     unknownNumber++;
                     detected.push({
                         type: 'word',
@@ -4150,7 +4717,7 @@
                     continue;
                 }
 
-                if (!glyphMatch || glyphMatch.score < BINARY_ACCEPT_SCORE) {
+                if (!isReliableBinaryMatch(glyphMatch, BINARY_ACCEPT_SCORE)) {
                     unknownNumber++;
                     detected.push({
                         type: 'word',
@@ -4513,6 +5080,13 @@
                 e.preventDefault();
                 checkRecognitionGuess();
             }
+        });
+
+        gallerySearch.addEventListener('input', renderGallery);
+        gallerySearchClear.addEventListener('click', () => {
+            gallerySearch.value = '';
+            renderGallery();
+            gallerySearch.focus();
         });
 
         footerReset.addEventListener('click', (e) => {
