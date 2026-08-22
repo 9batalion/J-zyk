@@ -7,6 +7,7 @@ Pakiet jest gotowy do publikacji jako instalowalna aplikacja internetowa.
 - `index.html` — aplikacja;
 - `manifest.webmanifest` — dane instalacyjne PWA;
 - `service-worker.js` — działanie offline i aktualizacja pamięci podręcznej;
+- `bulk-dictionary.js` i `bulk-dictionary.css` — słownik masowy, IndexedDB, indeksy rozpoznawania i cache PNG;
 - `offline.html` — ekran awaryjny;
 - `icons/` — ikony 192 px, 512 px i wariant maskowalny.
 - `vendor/` — lokalne parsery ZIP/DOCX/ODT i PDF używane również offline.
@@ -24,7 +25,7 @@ Otwórz stronę w Safari, wybierz `Udostępnij`, następnie `Do ekranu początko
 
 ## Dane użytkownika
 
-Baza symboli jest przechowywana lokalnie w przeglądarce. Aktualizacja plików PWA nie usuwa bazy, ale wyczyszczenie danych witryny lub odinstalowanie aplikacji może ją skasować. Warto regularnie używać przycisku `Eksportuj bazę`.
+Baza symboli jest przechowywana lokalnie w przeglądarce. Ręcznie zapisane warianty pozostają w małej bazie użytkownika, a słownik masowy, indeksy binarne i opcjonalne obrazy PNG są przechowywane w IndexedDB. Aktualizacja plików PWA nie usuwa tych danych, ale wyczyszczenie danych witryny lub odinstalowanie aplikacji może je skasować. Warto włączyć trwałą pamięć i regularnie eksportować ważne dane.
 
 Na ekranie głównym baza pokazuje maksymalnie 9 ostatnio zapisanych znaków. Pole wyszukiwania nad galerią przeszukuje całą bazę i pokazuje wszystkie pasujące słowa.
 
@@ -33,6 +34,14 @@ Na ekranie głównym baza pokazuje maksymalnie 9 ostatnio zapisanych znaków. Po
 Generator V9 korzysta z geometrycznego alfabetu inspirowanego materiałem wzorcowym. Rdzenie są budowane wyłącznie z odcinków poziomych, pionowych i ukośnych pod kątem 45°. Czytelne pierścienie trafiają na wolne końce, a osobne grupy równoległych kresek, kropek i małych kątów działają jako diakrytyki. Długość słowa steruje liczbą gałęzi, zakończeń i dodatków: znak jednej litery pozostaje prosty, a długiego słowa jest wyraźnie bardziej złożony.
 
 Silnik rozpoznawania porównuje znormalizowane mapy binarne 40×40 i odrzuca niejednoznaczne dopasowania zamiast automatycznie wpisywać błędne słowo. Dla baz liczących ponad 1000 i 5000 słów stosowane są stopniowo ostrzejsze progi przewagi najlepszego wyniku.
+
+## Słownik masowy
+
+Moduł `Słownik Masowy` przyjmuje kolejne paczki TXT, CSV, JSON i Hunspell DIC — nie trzeba wgrywać całych 150 000 haseł jednocześnie. Import jest niewrażliwy na wielkość liter, pomija duplikaty i zapisuje punkt wznowienia po każdej paczce 48 haseł. Przerwany proces można wznowić po ponownym uruchomieniu PWA. Ręcznie zapisany wariant słowa ma pierwszeństwo przed automatycznym glifem słownikowym.
+
+Tryb kompaktowy zapisuje słowo, deterministyczny seed, mapę binarną 40×40, dokładny hash oraz dwanaście wieloskalowych skrótów przestrzennych. Dzięki temu generator zdań i dokumentów może odtwarzać glif na żądanie, a rozpoznawanie nie porównuje obrazu kolejno ze wszystkimi hasłami. Pełny cache PNG 520×520 jest opcjonalny, działa partiami po 6 obrazów i również obsługuje pauzę oraz wznowienie.
+
+Gotowe obrazy z pełnego cache można pobierać w kolejnych archiwach ZIP po 500 plików. Interfejs pokazuje liczbę haseł, indeksów, PNG oraz aktualne wykorzystanie i limit pamięci przyznany aplikacji przez przeglądarkę. Rzeczywisty limit zależy od urządzenia i systemu; przy bardzo dużej bazie aplikację najlepiej zainstalować jako PWA i nie czyścić jej danych.
 
 ## Tekst obrazkowy
 
