@@ -1519,12 +1519,14 @@
                 Wczytaj TXT, HTML, DOCX, ODT lub PDF albo wklej treść. Aplikacja zapisze ją jako
                 wielostronicowy dokument obrazkowy <strong>.glyphdoc</strong> z podglądami PNG oraz kopią
                 pliku źródłowego. Po zakodowaniu wszystkie strony można również pobrać jako zwykły ZIP
-                albo gotowy do oglądania i drukowania PDF. Ten sam moduł odtworzy tekst i pozwoli pobrać dokładny oryginał.
+                albo gotowy do oglądania i drukowania PDF. Ten sam moduł odkoduje GLYPHDOC, ZIP, PNG
+                oraz PDF i pozwoli pobrać odzyskany tekst lub dokładny oryginał.
                 Dopasowanie słów do bazy nie rozróżnia małych i wielkich liter. Format służy do zapisu
                 symbolicznego — nie jest szyfrowaniem. Jeżeli w tekście występują nowe słowa, program
                 automatycznie przypisze je do istniejącej rodziny znaczeniowej albo utworzy nową, zapisze indeksy
                 rozpoznawania i dopiero potem zakoduje dokument.
-                Przy odczycie obrazu bez metadanych nierozpoznane miejsca zostaną jawnie oznaczone,
+                Nowe pliki PDF zawierają własny manifest do dokładnego odzyskania tekstu. Przy odczycie
+                starszego PDF albo obrazu bez metadanych nierozpoznane miejsca zostaną jawnie oznaczone,
                 a program będzie kontynuował do końca pliku.
             </p>
             <div class="document-grid">
@@ -1546,7 +1548,7 @@
                         <button class="btn btn-secondary" id="documentDownloadText" disabled>Pobierz odkodowany TXT</button>
                         <button class="btn btn-secondary" id="documentDownloadOriginal" disabled>Pobierz oryginalny plik</button>
                         <input type="file" id="documentSourceFile" accept=".txt,.md,.csv,.json,.log,.html,.htm,.doc,.docx,.odt,.pdf,text/plain,text/markdown,text/csv,text/html,application/json,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.oasis.opendocument.text,application/pdf" style="display:none;" />
-                        <input type="file" id="documentDecodeFile" accept=".glyphdoc,.zip,.png,application/zip,image/png" style="display:none;" />
+                        <input type="file" id="documentDecodeFile" accept=".glyphdoc,.zip,.png,.pdf,application/zip,image/png,application/pdf" style="display:none;" />
                     </div>
                 </div>
                 <div class="document-preview" id="documentPreview">
@@ -5756,6 +5758,8 @@
         const DOCUMENT_FORMAT = 'JOS-DOCUMENT';
         const DOCUMENT_FORMAT_VERSION = 2;
         const DOCUMENT_METADATA_KEY = 'JODocument';
+        const DOCUMENT_PDF_METADATA_MAGIC = 'GLYPHOSDOC1';
+        const DOCUMENT_PDF_METADATA_MAX_SIZE = 8 * 1024 * 1024;
         const DOCUMENT_MAX_CHARACTERS = 250000;
         const DOCUMENT_MAX_TOKENS = 20000;
         const DOCUMENT_MAX_PAGES = 250;
@@ -6060,7 +6064,53 @@
          * zajmuje cały arkusz, więc cybernetyczna ramka, proporcje glifów i
          * odstępy są identyczne jak w podglądach PNG zapisanych w GLYPHDOC.
          */
-        function createDocumentPdfBlob(pageImages) {
+        function createPdfDocumentMetadataBytes(manifest) {
+            if (!manifest) return null;
+            const encoder = new TextEncoder();
+            const magic = encoder.encode(DOCUMENT_PDF_METADATA_MAGIC);
+            const json = encoder.encode(JSON.stringify(manifest));
+            if (json.length > DOCUMENT_PDF_METADATA_MAX_SIZE) {
+                throw new Error('Manifest dokumentu jest zbyt duży, aby osadzić go w PDF.');
+            }
+            const length = new Uint8Array(4);
+            new DataView(length.buffer).setUint32(0, json.length, false);
+            return concatUint8Arrays([magic, length, json]);
+        }
+
+        function findByteSequence(bytes, sequence) {
+            if (!sequence.length || sequence.length > bytes.length) return -1;
+            outer: for (let offset = 0; offset <= bytes.length - sequence.length; offset++) {
+                for (let index = 0; index < sequence.length; index++) {
+                    if (bytes[offset + index] !== sequence[index]) continue outer;
+                }
+                return offset;
+            }
+            return -1;
+        }
+
+        function extractDocumentPayloadFromPdf(bytes) {
+            const magic = new TextEncoder().encode(DOCUMENT_PDF_METADATA_MAGIC);
+            const offset = findByteSequence(bytes, magic);
+            if (offset < 0) return null;
+            const lengthOffset = offset + magic.length;
+            if (lengthOffset + 4 > bytes.length) {
+                throw new Error('Metadane PDF są ucięte.');
+            }
+            const length = new DataView(bytes.buffer, bytes.byteOffset + lengthOffset, 4).getUint32(0, false);
+            const jsonOffset = lengthOffset + 4;
+            if (length === 0 || length > DOCUMENT_PDF_METADATA_MAX_SIZE || jsonOffset + length > bytes.length) {
+                throw new Error('Rozmiar metadanych PDF jest nieprawidłowy.');
+            }
+            let payload;
+            try {
+                payload = JSON.parse(new TextDecoder().decode(bytes.slice(jsonOffset, jsonOffset + length)));
+            } catch {
+                throw new Error('Nie udało się odczytać manifestu osadzonego w PDF.');
+            }
+            return validateDocumentPayload(payload);
+        }
+
+        function createDocumentPdfBlob(pageImages, manifest = null) {
             if (!Array.isArray(pageImages) || pageImages.length === 0) {
                 throw new Error('Dokument nie zawiera stron do eksportu PDF.');
             }
@@ -6071,8 +6121,12 @@
             const pageIds = [];
             const pdfWidth = 595.28;
             const pdfHeight = 841.89;
+            const metadataBytes = createPdfDocumentMetadataBytes(manifest);
+            const metadataId = metadataBytes ? 3 + pageImages.length * 3 : null;
 
-            objectParts.set(1, [encode('<< /Type /Catalog /Pages 2 0 R >>')]);
+            objectParts.set(1, [encode(
+                `<< /Type /Catalog /Pages 2 0 R${metadataId ? ` /GlyphDocument ${metadataId} 0 R` : ''} >>`
+            )]);
 
             pageImages.forEach((page, index) => {
                 const pageId = 3 + index * 3;
@@ -6113,7 +6167,15 @@
                 `<< /Type /Pages /Kids [${pageIds.map(id => `${id} 0 R`).join(' ')}] /Count ${pageIds.length} >>`
             )]);
 
-            const objectCount = 2 + pageImages.length * 3;
+            if (metadataId) {
+                objectParts.set(metadataId, [
+                    encode(`<< /Type /GlyphDocument /Length ${metadataBytes.length} >>\nstream\n`),
+                    metadataBytes,
+                    encode('\nendstream'),
+                ]);
+            }
+
+            const objectCount = 2 + pageImages.length * 3 + (metadataId ? 1 : 0);
             const parts = [];
             const offsets = new Array(objectCount + 1).fill(0);
             const header = encode('%PDF-1.4\n%GLYPH-OS\n');
@@ -6388,7 +6450,10 @@
             try {
                 await new Promise(resolve => setTimeout(resolve, 0));
                 if (!currentEncodedDocument.pdfBlob) {
-                    currentEncodedDocument.pdfBlob = createDocumentPdfBlob(currentEncodedDocument.pdfPages);
+                    currentEncodedDocument.pdfBlob = createDocumentPdfBlob(
+                        currentEncodedDocument.pdfPages,
+                        currentEncodedDocument.manifest
+                    );
                 }
                 const fileName = `${documentExportBaseName(currentEncodedDocument.manifest.originalFileName)}.pdf`;
                 triggerBlobDownload(currentEncodedDocument.pdfBlob, fileName);
@@ -6678,10 +6743,46 @@
             showDocumentPreview(canvas);
         }
 
+        async function renderDocumentPdfPage(pdf, pageNumber) {
+            const page = await pdf.getPage(pageNumber);
+            try {
+                const baseViewport = page.getViewport({ scale: 1 });
+                // Około 1600 px szerokości zachowuje szczegóły cienkich glifów,
+                // ale nie tworzy nadmiernie dużych buforów na urządzeniach mobilnych.
+                const scale = Math.min(3, 1600 / Math.max(1, baseViewport.width));
+                const viewport = page.getViewport({ scale });
+                const canvas = document.createElement('canvas');
+                canvas.width = Math.max(1, Math.ceil(viewport.width));
+                canvas.height = Math.max(1, Math.ceil(viewport.height));
+                const context = canvas.getContext('2d', { alpha: false });
+                context.fillStyle = '#ffffff';
+                context.fillRect(0, 0, canvas.width, canvas.height);
+                await page.render({ canvasContext: context, viewport, canvas }).promise;
+                return canvas;
+            } finally {
+                page.cleanup?.();
+            }
+        }
+
+        async function previewDocumentPdfBytes(bytes) {
+            const pdfjs = await getPdfJsModule();
+            const loadingTask = pdfjs.getDocument({ data: bytes.slice() });
+            const pdf = await loadingTask.promise;
+            try {
+                if (pdf.numPages > 0) {
+                    showDocumentPreview(await renderDocumentPdfPage(pdf, 1));
+                }
+                return pdf.numPages;
+            } finally {
+                await pdf.destroy();
+            }
+        }
+
         async function recognizeDocumentPagesVisually(pageEntries) {
             const parts = [];
             const counters = { uncertain: 0, unresolved: 0 };
             let failedPages = 0;
+            let previewShown = false;
             for (let index = 0; index < pageEntries.length; index++) {
                 setDocumentStatus(`Rozpoznawanie obrazu strony ${index + 1}/${pageEntries.length}…`);
                 try {
@@ -6689,7 +6790,10 @@
                     const result = await recognizeSentenceByBinaryMap(canvas);
                     const resolvedTokens = resolvePartialRecognitionTokens(result.detected, counters);
                     parts.push(binaryTokensToText(resolvedTokens));
-                    if (index === 0) showDocumentPreview(canvas);
+                    if (!previewShown) {
+                        showDocumentPreview(canvas);
+                        previewShown = true;
+                    }
                 } catch (error) {
                     failedPages++;
                     parts.push(unreadablePageMarker(index + 1));
@@ -6701,6 +6805,47 @@
                 suggestions: counters.uncertain,
                 unresolved: counters.unresolved,
                 failedPages,
+            };
+        }
+
+        async function recognizeDocumentPdfVisually(bytes) {
+            const pdfjs = await getPdfJsModule();
+            const loadingTask = pdfjs.getDocument({ data: bytes.slice() });
+            const pdf = await loadingTask.promise;
+            const parts = [];
+            const counters = { uncertain: 0, unresolved: 0 };
+            let failedPages = 0;
+            let previewShown = false;
+            try {
+                if (pdf.numPages > DOCUMENT_MAX_PAGES) {
+                    throw new Error(`PDF ma ${pdf.numPages} stron. Limit dekodowania wynosi ${DOCUMENT_MAX_PAGES}.`);
+                }
+                for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
+                    setDocumentStatus(`Rozpoznawanie PDF: strona ${pageNumber}/${pdf.numPages}…`);
+                    try {
+                        const canvas = await renderDocumentPdfPage(pdf, pageNumber);
+                        const result = await recognizeSentenceByBinaryMap(canvas);
+                        const resolvedTokens = resolvePartialRecognitionTokens(result.detected, counters);
+                        parts.push(binaryTokensToText(resolvedTokens));
+                        if (!previewShown) {
+                            showDocumentPreview(canvas);
+                            previewShown = true;
+                        }
+                    } catch (error) {
+                        failedPages++;
+                        parts.push(unreadablePageMarker(pageNumber));
+                        console.warn(`Nie udało się odczytać strony PDF ${pageNumber}; kontynuuję dokument.`, error);
+                    }
+                }
+            } finally {
+                await pdf.destroy();
+            }
+            return {
+                text: parts.join('\n\n'),
+                suggestions: counters.uncertain,
+                unresolved: counters.unresolved,
+                failedPages,
+                pageCount: pdf.numPages,
             };
         }
 
@@ -6718,13 +6863,36 @@
                 const bytes = new Uint8Array(await file.arrayBuffer());
                 const pngSignature = [137, 80, 78, 71, 13, 10, 26, 10];
                 const isPng = bytes.length >= 8 && pngSignature.every((value, index) => bytes[index] === value);
+                const pdfSignature = [37, 80, 68, 70, 45];
+                const isPdf = bytes.length >= 5 && pdfSignature.every((value, index) => bytes[index] === value);
                 let payload = null;
                 let decodedText = '';
                 let exact = false;
                 let pageCount = 1;
                 let visualInfo = null;
 
-                if (isPng) {
+                if (isPdf) {
+                    payload = extractDocumentPayloadFromPdf(bytes);
+                    if (payload) {
+                        decodedText = payload.text;
+                        exact = true;
+                        pageCount = Array.isArray(payload.pages) && payload.pages.length
+                            ? payload.pages.length
+                            : (payload.statistics?.pages || payload.pageCount || 1);
+                        try {
+                            await previewDocumentPdfBytes(bytes);
+                        } catch (previewError) {
+                            // Manifest wystarcza do dokładnego odczytu. Uszkodzony podgląd
+                            // nie może odbierać użytkownikowi odzyskanej treści.
+                            console.warn('Nie udało się wyświetlić podglądu PDF; tekst został odzyskany.', previewError);
+                        }
+                    } else {
+                        setDocumentStatus('PDF nie ma manifestu Glyph OS — uruchamiam rozpoznawanie map binarnych…');
+                        visualInfo = await recognizeDocumentPdfVisually(bytes);
+                        decodedText = visualInfo.text;
+                        pageCount = visualInfo.pageCount;
+                    }
+                } else if (isPng) {
                     payload = extractPngTextMetadata(bytes, DOCUMENT_METADATA_KEY);
                     if (payload) {
                         validateDocumentPayload(payload, true);
@@ -6779,7 +6947,7 @@
                 documentInput.value = decodedText;
                 currentDecodedDocumentText = decodedText;
                 currentDocumentSourceName = payload?.originalFileName || 'odkodowany-dokument.txt';
-                if (!exact || isPng) currentDecodedOriginalFile = null;
+                if (!exact || isPng || isPdf) currentDecodedOriginalFile = null;
                 currentDocumentOriginalFile = currentDecodedOriginalFile;
                 currentEncodedDocument = null;
                 documentDownload.disabled = true;
@@ -6791,7 +6959,7 @@
                 setDocumentStatus(
                     exact
                         ? `Odkodowano dokładną treść dokumentu (${pageCount} ${pageCount === 1 ? 'strona' : 'stron'}). Zachowano wielkość liter, akapity i polskie znaki.${currentDecodedOriginalFile ? ' Oryginalny plik jest gotowy do pobrania.' : ''}`
-                        : `Odczytano wszystko, co było możliwe, z ${pageCount} ${pageCount === 1 ? 'strony' : 'stron'} obrazu. Wielkość liter nie wpływała na dopasowanie. ${visualInfo?.suggestions || 0} niepewnych dopasowań i ${visualInfo?.unresolved || 0} braków oznaczono bezpośrednio w tekście${visualInfo?.failedPages ? `; pominięto ${visualInfo.failedPages} nieczytelnych stron, pozostawiając znaczniki` : ''}. Dekodowanie dotarło do końca dokumentu.`,
+                        : `Odczytano wszystko, co było możliwe, z ${pageCount} ${pageCount === 1 ? 'strony' : 'stron'} ${isPdf ? 'PDF' : 'obrazu'}. Wielkość liter nie wpływała na dopasowanie. ${visualInfo?.suggestions || 0} niepewnych dopasowań i ${visualInfo?.unresolved || 0} braków oznaczono bezpośrednio w tekście${visualInfo?.failedPages ? `; pominięto ${visualInfo.failedPages} nieczytelnych stron, pozostawiając znaczniki` : ''}. Dekodowanie dotarło do końca dokumentu.`,
                     exact ? 'success' : 'warning'
                 );
             } catch (error) {

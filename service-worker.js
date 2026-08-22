@@ -1,4 +1,4 @@
-const CACHE_NAME = 'glyph-os-static-v2.6.0';
+const CACHE_NAME = 'glyph-os-static-v2.7.0';
 const CORE_ASSETS = [
     './',
     './index.html',
