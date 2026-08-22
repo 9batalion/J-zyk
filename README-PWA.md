@@ -10,6 +10,7 @@ Pakiet jest gotowy do publikacji jako instalowalna aplikacja internetowa.
 - `.nojekyll` — publikowanie aplikacji przez GitHub Pages bez przetwarzania jej plików przez Jekyll;
 - `DEPLOY-GITHUB.md` — instrukcja wdrożenia i usunięcia starych duplikatów;
 - `bulk-dictionary.js` i `bulk-dictionary.css` — słownik masowy, IndexedDB, indeksy rozpoznawania i cache PNG;
+- `morphology.js` — rodziny znaczeniowe, znaczniki form i migracja starych baz;
 - `learning-engine.js` i `learning-engine.css` — Akademia Glifów, harmonogram powtórek i statystyki nauki;
 - `offline.html` — ekran awaryjny;
 - `icons/` — ikony 192 px, 512 px i wariant maskowalny.
@@ -63,6 +64,12 @@ Przycisk `Pobierz listę słów TXT` zapisuje alfabetyczną listę wszystkich ha
 Generator zdań układa zapisane symbole jak glify własnej czcionki: w równych wierszach, bez kafelków, ramek i numerów, z odstępami pomiędzy słowami oraz interpunkcją dosuniętą do poprzedniego znaku. Zapis automatycznie przechodzi do następnego wiersza. Eksportowane PNG zachowuje metadane zdania, a sam widoczny układ może być również odczytany przez tryb swobodnej mapy binarnej.
 
 Jeżeli zdanie zawiera słowo, którego nie ma jeszcze w bazie, aplikacja automatycznie nadaje mu deterministyczny glif, buduje mapę binarną 40×40 i zapisuje rekord w słowniku masowym. Po zakończeniu indeksowania zdanie jest odświeżane i można je od razu pobrać bez ręcznego przechodzenia do generatora.
+
+## Rodziny znaczeniowe i zgodność wsteczna
+
+Baza w wersji 4 przechowuje każdą formę powierzchniową, ale łączy odmiany oraz rozpoznane zdrobnienia wspólnym `familyKey`. Przykładowo `dom`, `domu`, `domem`, `domek` i `domku` korzystają z jednego szkieletu znaczeniowego. Konkretna forma otrzymuje mały, deterministyczny moduł gramatyczny o 1024 możliwych kodach, dlatego obraz bez metadanych nadal może zostać przypisany do właściwego hasła.
+
+Import starych backupów JSON oraz istniejącej bazy IndexedDB uruchamia automatyczną migrację. Dawny glif zmienionej formy pozostaje zapisany jako alias rozpoznawania, więc wcześniejsze eksporty PNG nie tracą od razu zgodności. Migracja ma punkt wznowienia, czyści nieaktualny cache PNG i odbudowuje indeksy binarne partiami. Nowe paczki TXT, CSV, JSON i Hunspell DIC przechodzą przez ten sam analizator rodzin; JSON może dodatkowo przekazać jawne pole `lemma`, `base` albo `baseWord`, które ma pierwszeństwo przed analizą heurystyczną.
 
 ## Dokumenty obrazkowe
 

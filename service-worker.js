@@ -1,9 +1,10 @@
-const CACHE_NAME = 'glyph-os-static-v2.5.0';
+const CACHE_NAME = 'glyph-os-static-v2.6.0';
 const CORE_ASSETS = [
     './',
     './index.html',
     './offline.html',
     './manifest.webmanifest',
+    './morphology.js',
     './bulk-dictionary.css',
     './bulk-dictionary.js',
     './learning-engine.css',

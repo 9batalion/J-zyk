@@ -1522,7 +1522,8 @@
                 albo gotowy do oglądania i drukowania PDF. Ten sam moduł odtworzy tekst i pozwoli pobrać dokładny oryginał.
                 Dopasowanie słów do bazy nie rozróżnia małych i wielkich liter. Format służy do zapisu
                 symbolicznego — nie jest szyfrowaniem. Jeżeli w tekście występują nowe słowa, program
-                automatycznie utworzy dla nich glify, zapisze indeksy rozpoznawania i dopiero potem zakoduje dokument.
+                automatycznie przypisze je do istniejącej rodziny znaczeniowej albo utworzy nową, zapisze indeksy
+                rozpoznawania i dopiero potem zakoduje dokument.
                 Przy odczycie obrazu bez metadanych nierozpoznane miejsca zostaną jawnie oznaczone,
                 a program będzie kontynuował do końca pliku.
             </p>
@@ -1683,13 +1684,20 @@
             <h2><span class="icon">06</span> Słownik Masowy</h2>
             <p class="bulk-intro">
                 Dodawaj słownik partiami w formacie TXT, CSV, JSON albo Hunspell DIC. Każda paczka trafia do
-                IndexedDB, a duplikaty są pomijane bez rozróżniania wielkości liter. Parametry glifów i indeks
-                binarny są zapisywane od razu; obrazy PNG możesz wygenerować osobno i wznowić po przerwaniu.
+                IndexedDB, a duplikaty są pomijane bez rozróżniania wielkości liter. Import automatycznie łączy
+                odmiany i zdrobnienia w rodziny znaczeniowe: główny kształt pozostaje wspólny, a mały moduł
+                gramatyczny oznacza konkretną formę. Stare backupy są migrowane automatycznie i zachowują
+                wcześniejsze glify jako aliasy rozpoznawania. Parametry glifów i indeks binarny są zapisywane
+                od razu; obrazy PNG możesz wygenerować osobno i wznowić po przerwaniu.
             </p>
             <div class="bulk-stats">
                 <div class="bulk-stat">
                     <span class="bulk-stat-label">Hasła masowe</span>
                     <span class="bulk-stat-value" id="bulkWordCount">0</span>
+                </div>
+                <div class="bulk-stat">
+                    <span class="bulk-stat-label">Rodziny znaczeń</span>
+                    <span class="bulk-stat-value" id="bulkFamilyCount">0</span>
                 </div>
                 <div class="bulk-stat">
                     <span class="bulk-stat-label">Indeksy binarne</span>
@@ -1748,6 +1756,7 @@
         </footer>
     </div>
 
+    <script src="./morphology.js"></script>
     <script src="./vendor/jszip.min.js"></script>
     <script>
         // =====================================================
@@ -3030,22 +3039,54 @@
         // =====================================================
 
         const DB_KEY = 'glyphLanguageDB';
+        const LOCAL_DATABASE_SCHEMA_VERSION = 4;
+
+        function migrateLocalEntries(entries, knownEntries = []) {
+            if (!globalThis.GlyphMorphology?.migrateEntries) {
+                return { entries: Array.isArray(entries) ? entries : [], statistics: null };
+            }
+            return globalThis.GlyphMorphology.migrateEntries(entries, {
+                knownEntries,
+                preserveLegacy: true,
+            });
+        }
 
         function loadDatabase() {
             try {
                 const data = localStorage.getItem(DB_KEY);
                 if (data) {
                     const parsed = JSON.parse(data);
-                    if (parsed && Array.isArray(parsed.words)) return parsed;
+                    if (parsed && Array.isArray(parsed.words)) {
+                        const migration = migrateLocalEntries(parsed.words);
+                        const migrated = {
+                            ...parsed,
+                            schemaVersion: LOCAL_DATABASE_SCHEMA_VERSION,
+                            morphologyVersion: globalThis.GlyphMorphology?.version || 0,
+                            words: migration.entries,
+                        };
+                        const requiresSave = parsed.schemaVersion !== LOCAL_DATABASE_SCHEMA_VERSION ||
+                            migration.entries.some((entry, index) => (
+                                entry.familyKey !== parsed.words[index]?.familyKey ||
+                                entry.modifierCode !== parsed.words[index]?.modifierCode
+                            ));
+                        if (requiresSave) localStorage.setItem(DB_KEY, JSON.stringify(migrated));
+                        return migrated;
+                    }
                 }
             } catch (e) {
                 console.warn('Błąd wczytywania bazy:', e);
             }
-            return { words: [] };
+            return {
+                schemaVersion: LOCAL_DATABASE_SCHEMA_VERSION,
+                morphologyVersion: globalThis.GlyphMorphology?.version || 0,
+                words: [],
+            };
         }
 
         function saveDatabase(db) {
             try {
+                db.schemaVersion = LOCAL_DATABASE_SCHEMA_VERSION;
+                db.morphologyVersion = globalThis.GlyphMorphology?.version || 0;
                 localStorage.setItem(DB_KEY, JSON.stringify(db));
                 return true;
             } catch (e) {
@@ -3074,26 +3115,59 @@
             return globalThis.GlyphBulk?.totalUniqueCount?.() ?? db.words.length;
         }
 
+        function getMorphologyReferences() {
+            return [
+                ...db.words,
+                ...(globalThis.GlyphBulk?.morphologyReferences?.() || []),
+            ];
+        }
+
+        function analyzeWordMorphology(word, source = {}) {
+            const migration = globalThis.GlyphMorphology?.migrateEntries?.([
+                { ...source, word: String(word).normalize('NFC').trim() },
+            ], {
+                knownEntries: getMorphologyReferences(),
+                preserveLegacy: false,
+            });
+            return migration?.entries?.[0] || {
+                ...source,
+                word: String(word).normalize('NFC').trim(),
+                key: normalizeDictionaryKey(word),
+                familyKey: normalizeDictionaryKey(word),
+                lemma: normalizeDictionaryKey(word),
+                glyphWord: normalizeDictionaryKey(word),
+                modifierCode: 0,
+            };
+        }
+
         function addWordToDatabase(db, word, glyphData, variantSeed = null, replaceExisting = false) {
             const existing = findLocalWord(db, word);
+            const morphology = existing || analyzeWordMorphology(word, { variantSeed });
+            const familyKey = normalizeDictionaryKey(morphology.familyKey || morphology.lemma || word);
             if (existing) {
                 if (!replaceExisting) {
                     return { added: false, replaced: false, existing: true, entry: existing };
                 }
+                db.words.forEach(entry => {
+                    if (normalizeDictionaryKey(entry.familyKey || entry.word) !== familyKey) return;
+                    entry.glyphData = glyphData;
+                    entry.glyphVersion = GLYPH_DATA_VERSION;
+                    entry.generatorVersion = GENERATOR_VERSION;
+                    entry.familyVariantSeed = variantSeed;
+                    entry.variantSeed = variantSeed;
+                    entry.timestamp = new Date().toISOString();
+                });
                 existing.word = word.trim();
-                existing.glyphData = glyphData;
-                existing.glyphVersion = GLYPH_DATA_VERSION;
-                existing.generatorVersion = GENERATOR_VERSION;
-                existing.variantSeed = variantSeed;
-                existing.timestamp = new Date().toISOString();
                 saveDatabase(db);
                 return { added: false, replaced: true, existing: true, entry: existing };
             }
             const entry = {
+                ...morphology,
                 word: word.trim(),
                 glyphData,
                 glyphVersion: GLYPH_DATA_VERSION,
                 generatorVersion: GENERATOR_VERSION,
+                familyVariantSeed: variantSeed,
                 variantSeed,
                 timestamp: new Date().toISOString(),
             };
@@ -3168,6 +3242,8 @@
 
         let db = loadDatabase();
         let currentGlyphStrokes = null;
+        let currentGlyphBaseStrokes = null;
+        let currentGlyphMorphology = null;
         let currentGlyphWord = null;
         let currentGlyphVariantSeed = null;
         let currentGlyphIsDraft = false;
@@ -3250,7 +3326,10 @@
                 // zapisane. Nowy generator obowiązuje dopiero przy kolejnym
                 // kliknięciu „Generuj”, więc aktualizacja nie podmienia bazy.
                 if (!Array.isArray(entry.glyphData) || entry.glyphData.length === 0) {
-                    entry.glyphData = generateGlyphStrokes(entry.word, entry.variantSeed);
+                    entry.glyphData = generateGlyphStrokes(
+                        entry.glyphWord || entry.familyKey || entry.word,
+                        entry.familyVariantSeed ?? entry.variantSeed
+                    );
                     entry.glyphVersion = GLYPH_DATA_VERSION;
                     entry.generatorVersion = GENERATOR_VERSION;
                     changed = true;
@@ -3268,10 +3347,82 @@
             if (changed) saveDatabase(db);
         }
 
-        function getEntryGlyph(entry) {
+        function getEntryBaseGlyph(entry) {
             return Array.isArray(entry.glyphData) && entry.glyphData.length > 0
                 ? entry.glyphData
-                : generateGlyphStrokes(entry.glyphWord || entry.word, entry.variantSeed);
+                : generateGlyphStrokes(
+                    entry.glyphWord || entry.familyKey || entry.word,
+                    entry.familyVariantSeed ?? entry.variantSeed
+                );
+        }
+
+        /**
+         * Mały moduł w prawym dolnym rogu koduje konkretną formę słowa.
+         * Pięć pozycji ma po cztery stany: brak, kropka, kreska pozioma i
+         * kreska pionowa. Daje to 1024 warianty w obrębie jednej rodziny bez
+         * zmieniania jej głównego, łatwego do zapamiętania szkieletu.
+         */
+        function createMorphologyModifierStrokes(entry) {
+            const code = Number(entry?.modifierCode) || 0;
+            if (code <= 0) return [];
+            const strokes = [];
+            const width = 1.72;
+            const positions = [
+                [0.735, 0.785], [0.790, 0.785], [0.845, 0.785],
+                [0.762, 0.842], [0.817, 0.842],
+            ];
+            positions.forEach(([x, y], index) => {
+                const state = (code >>> (index * 2)) & 3;
+                if (state === 1) {
+                    strokes.push({ kind: 'dot', center: [x, y], radius: 0.0085, role: 'grammar' });
+                } else if (state === 2) {
+                    strokes.push({
+                        kind: 'line', points: [[x - 0.018, y], [x + 0.018, y]], width, role: 'grammar'
+                    });
+                } else if (state === 3) {
+                    strokes.push({
+                        kind: 'line', points: [[x, y - 0.018], [x, y + 0.018]], width, role: 'grammar'
+                    });
+                }
+            });
+
+            // Stały znacznik relacji ułatwia człowiekowi odróżnienie odmiany
+            // od zdrobnienia i formy czasownikowej.
+            const relation = String(entry?.morphologyRelation || 'inflection');
+            if (relation.includes('diminutive')) {
+                strokes.push({ kind: 'circle', center: [0.835, 0.705], radius: 0.016, width, role: 'grammar' });
+            } else if (relation === 'conjugation' || relation === 'irregular') {
+                strokes.push({
+                    kind: 'polyline',
+                    points: [[0.807, 0.716], [0.835, 0.688], [0.863, 0.716]],
+                    width,
+                    role: 'grammar',
+                });
+            } else {
+                strokes.push({
+                    kind: 'line', points: [[0.808, 0.705], [0.862, 0.705]], width, role: 'grammar'
+                });
+            }
+            return strokes;
+        }
+
+        function composeEntryGlyph(baseStrokes, entry) {
+            return [...baseStrokes, ...createMorphologyModifierStrokes(entry)];
+        }
+
+        function getEntryGlyph(entry) {
+            return composeEntryGlyph(getEntryBaseGlyph(entry), entry);
+        }
+
+        function getLegacyEntryGlyph(entry) {
+            if (Array.isArray(entry?.legacyGlyphData) && entry.legacyGlyphData.length > 0) {
+                return entry.legacyGlyphData;
+            }
+            if (!entry?.legacyGlyphWord) return null;
+            return generateGlyphStrokes(
+                entry.legacyGlyphWord,
+                entry.legacyVariantSeed ?? null
+            );
         }
 
         // =====================================================
@@ -3439,10 +3590,14 @@
             }
 
             const existing = findWord(db, word);
-            const variant = generateUniqueGlyphVariant(word);
+            const morphology = existing || analyzeWordMorphology(word);
+            const familyWord = morphology.familyKey || morphology.lemma || word;
+            const variant = generateUniqueGlyphVariant(familyWord);
 
             currentGlyphWord = word;
-            currentGlyphStrokes = variant.strokes;
+            currentGlyphBaseStrokes = variant.strokes;
+            currentGlyphMorphology = morphology;
+            currentGlyphStrokes = composeEntryGlyph(variant.strokes, morphology);
             currentGlyphVariantSeed = variant.variantSeed;
             currentGlyphIsDraft = true;
             saveBtn.disabled = true;
@@ -3486,7 +3641,7 @@
             const result = addWordToDatabase(
                 db,
                 currentGlyphWord,
-                currentGlyphStrokes,
+                currentGlyphBaseStrokes || currentGlyphStrokes,
                 currentGlyphVariantSeed,
                 Boolean(existing)
             );
@@ -3514,6 +3669,8 @@
             paintPaper(ctx, mainCanvas.width, mainCanvas.height);
             wordInput.value = '';
             currentGlyphStrokes = null;
+            currentGlyphBaseStrokes = null;
+            currentGlyphMorphology = null;
             currentGlyphWord = null;
             currentGlyphVariantSeed = null;
             currentGlyphIsDraft = false;
@@ -3727,6 +3884,9 @@
                     manifest.push({
                         file: fileName,
                         word: entry.word,
+                        lemma: entry.lemma || entry.familyKey || entry.word,
+                        familyKey: entry.familyKey || entry.word,
+                        modifierCode: Number(entry.modifierCode) || 0,
                         generatorVersion: entry.generatorVersion ?? null
                     });
                 }
@@ -3779,9 +3939,10 @@
                 await new Promise(resolve => requestAnimationFrame(resolve));
                 const payload = {
                     format: 'glyph-os-database-backup',
-                    formatVersion: 3,
+                    formatVersion: 4,
                     exportedAt: new Date().toISOString(),
                     generatorVersion: GENERATOR_VERSION,
+                    morphologyVersion: globalThis.GlyphMorphology?.version || 0,
                     counts: {
                         localWords: db.words.length,
                         bulkWords: bulkWords.length,
@@ -3823,14 +3984,24 @@
                 }
 
                 let localAdded = 0;
-                localWords.forEach(entry => {
+                const migratedLocal = globalThis.GlyphMorphology?.migrateEntries
+                    ? globalThis.GlyphMorphology.migrateEntries(localWords, {
+                        knownEntries: getMorphologyReferences(),
+                        preserveLegacy: true,
+                    }).entries
+                    : localWords;
+                migratedLocal.forEach(entry => {
                     if (!entry?.word || findLocalWord(db, entry.word)) return;
                     const hasCompatibleGlyph = Array.isArray(entry.glyphData) && entry.glyphData.length > 0;
                     db.words.push({
+                        ...entry,
                         word: String(entry.word).normalize('NFC').trim(),
                         glyphData: hasCompatibleGlyph
                             ? entry.glyphData
-                            : generateGlyphStrokes(entry.word, entry.variantSeed),
+                            : generateGlyphStrokes(
+                                entry.glyphWord || entry.familyKey || entry.word,
+                                entry.familyVariantSeed ?? entry.variantSeed
+                            ),
                         glyphVersion: hasCompatibleGlyph
                             ? (entry.glyphVersion ?? GLYPH_DATA_VERSION)
                             : GLYPH_DATA_VERSION,
@@ -4380,6 +4551,9 @@
                         type: 'word',
                         value: token.raw,
                         dictionaryWord: token.entry ? token.entry.word : null,
+                        lemma: token.entry ? (token.entry.lemma || token.entry.familyKey || token.entry.word) : null,
+                        familyKey: token.entry ? (token.entry.familyKey || token.entry.word) : null,
+                        modifierCode: token.entry ? (Number(token.entry.modifierCode) || 0) : 0,
                         glyph: token.entry ? glyphFingerprint(getEntryGlyph(token.entry)) : null,
                     };
                 }),
@@ -4709,22 +4883,29 @@
             return best;
         }
 
-        function createBinaryGlyphTemplate(entry) {
-            const strokes = getEntryGlyph(entry);
-            const fingerprint = glyphFingerprint(strokes);
+        function createBinaryGlyphTemplate(entry, strokes = null, templateKind = 'current') {
+            const resolvedStrokes = strokes || getEntryGlyph(entry);
+            const fingerprint = glyphFingerprint(resolvedStrokes);
             let map = binaryGlyphCache.get(fingerprint);
             if (!map) {
-                const canvas = createExportCanvas(strokes, 128);
+                const canvas = createExportCanvas(resolvedStrokes, 128);
                 map = createBinaryMap(canvas, 0, 0, canvas.width, canvas.height, false);
                 binaryGlyphCache.set(fingerprint, map);
             }
-            return { entry, fingerprint, map };
+            return { entry, fingerprint, map, templateKind };
         }
 
         async function buildBinaryDictionary(onProgress) {
             const templates = [];
             for (let index = 0; index < db.words.length; index++) {
-                templates.push(createBinaryGlyphTemplate(db.words[index]));
+                const entry = db.words[index];
+                const current = createBinaryGlyphTemplate(entry);
+                templates.push(current);
+                const legacyStrokes = getLegacyEntryGlyph(entry);
+                if (legacyStrokes) {
+                    const legacy = createBinaryGlyphTemplate(entry, legacyStrokes, 'legacy');
+                    if (legacy.fingerprint !== current.fingerprint) templates.push(legacy);
+                }
                 if ((index + 1) % 160 === 0) {
                     if (onProgress) onProgress(index + 1, db.words.length);
                     await new Promise(resolve => setTimeout(resolve, 0));
@@ -4772,18 +4953,17 @@
                 keepBinaryCandidate(shortlist, candidate, binaryFeatureDistance(map, candidate.map));
             });
 
-            let best = null;
-            let secondScore = 0;
+            const bestByEntry = new Map();
             shortlist.forEach(({ candidate }) => {
                 const score = binaryMapScore(map, candidate.map);
-                if (!best || score > best.score) {
-                    if (best) secondScore = best.score;
-                    best = { ...candidate, score };
-                } else if (score > secondScore) {
-                    secondScore = score;
-                }
+                const identity = normalizeDictionaryKey(candidate.entry?.word || candidate.fingerprint);
+                const previous = bestByEntry.get(identity);
+                if (!previous || score > previous.score) bestByEntry.set(identity, { ...candidate, score });
             });
+            const ranked = [...bestByEntry.values()].sort((left, right) => right.score - left.score);
+            const best = ranked[0] || null;
             if (!best) return null;
+            const secondScore = ranked[1]?.score || 0;
             return { ...best, secondScore, margin: best.score - secondScore };
         }
 

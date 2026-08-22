@@ -2,7 +2,7 @@
     'use strict';
 
     const DATABASE_NAME = 'glyphLanguageMassDatabase';
-    const DATABASE_VERSION = 2;
+    const DATABASE_VERSION = 3;
     const WORD_STORE = 'words';
     const SIGNATURE_STORE = 'signatures';
     const PNG_STORE = 'png';
@@ -10,6 +10,8 @@
     const IMPORT_JOB_KEY = 'import-job';
     const PNG_JOB_KEY = 'png-job';
     const ZIP_CURSOR_KEY = 'zip-cursor';
+    const MORPHOLOGY_JOB_KEY = 'morphology-migration-v1';
+    const MORPHOLOGY_SCHEMA_KEY = 'morphology-schema';
     const IMPORT_BATCH_SIZE = 48;
     const PNG_BATCH_SIZE = 6;
     const MAX_IMPORT_WORDS_PER_FILE = 200000;
@@ -113,17 +115,52 @@
         return {
             word: record.word,
             key: record.key,
-            glyphWord: record.key,
+            lemma: record.lemma || record.familyKey || record.key,
+            familyKey: record.familyKey || record.lemma || record.key,
+            glyphWord: record.glyphWord || record.familyKey || record.lemma || record.key,
+            modifierCode: Number(record.modifierCode) || 0,
+            morphologyRelation: record.morphologyRelation || 'base',
+            morphologySource: record.morphologySource || 'legacy',
+            morphologyVersion: Number(record.morphologyVersion) || 0,
+            familyVariantSeed: record.familyVariantSeed ?? record.variantSeed,
             variantSeed: record.variantSeed,
             generatorVersion: record.generatorVersion,
             timestamp: record.importedAt,
             isBulk: true,
             sourceName: record.sourceName || '',
+            legacyGlyphWord: record.legacyGlyphWord || '',
+            legacyVariantSeed: record.legacyVariantSeed ?? null,
+            legacyGeneratorVersion: record.legacyGeneratorVersion ?? null,
         };
     }
 
     function getWord(value) {
         return words.get(normalizeDictionaryKey(value)) || null;
+    }
+
+    function morphologyReferences() {
+        return [...words.values()].map(entry => ({
+            word: entry.word,
+            key: entry.key,
+            lemma: entry.lemma,
+            familyKey: entry.familyKey,
+            glyphWord: entry.glyphWord,
+            modifierCode: entry.modifierCode,
+            morphologyRelation: entry.morphologyRelation,
+            morphologySource: entry.morphologySource,
+            morphologyVersion: entry.morphologyVersion,
+            familyVariantSeed: entry.familyVariantSeed,
+            variantSeed: entry.variantSeed,
+            generatorVersion: entry.generatorVersion,
+        }));
+    }
+
+    function findFamily(value) {
+        const familyKey = normalizeDictionaryKey(value);
+        for (const entry of words.values()) {
+            if (normalizeDictionaryKey(entry.familyKey || entry.word) === familyKey) return entry;
+        }
+        return null;
     }
 
     function getTotalUniqueCount() {
@@ -205,6 +242,11 @@
                 storeCount(PNG_STORE),
             ]);
             if (elements.words) elements.words.textContent = words.size.toLocaleString('pl-PL');
+            if (elements.families) {
+                const familyKeys = new Set();
+                words.forEach(entry => familyKeys.add(entry.familyKey || entry.word));
+                elements.families.textContent = familyKeys.size.toLocaleString('pl-PL');
+            }
             if (elements.signatures) elements.signatures.textContent = signatureCount.toLocaleString('pl-PL');
             if (elements.png) elements.png.textContent = pngCount.toLocaleString('pl-PL');
             if (elements.pngProgress) {
@@ -236,6 +278,136 @@
         const records = await requestAsPromise(transaction.objectStore(WORD_STORE).getAll());
         words.clear();
         records.forEach(record => words.set(record.key, asBulkEntry(record)));
+    }
+
+    async function getAllWordRecords() {
+        const dbHandle = await openDatabase();
+        const transaction = dbHandle.transaction(WORD_STORE, 'readonly');
+        return requestAsPromise(transaction.objectStore(WORD_STORE).getAll());
+    }
+
+    async function startMorphologyMigrationJob(total) {
+        const dbHandle = await openDatabase();
+        const transaction = dbHandle.transaction([SIGNATURE_STORE, PNG_STORE, META_STORE], 'readwrite');
+        transaction.objectStore(SIGNATURE_STORE).clear();
+        transaction.objectStore(PNG_STORE).clear();
+        transaction.objectStore(META_STORE).put({
+            key: MORPHOLOGY_JOB_KEY,
+            version: globalThis.GlyphMorphology?.version || 1,
+            index: 0,
+            total,
+            status: 'running',
+            startedAt: new Date().toISOString(),
+        });
+        await transactionDone(transaction);
+    }
+
+    async function ensureMorphologyMigration() {
+        if (!globalThis.GlyphMorphology?.migrateEntries) {
+            throw new Error('Moduł rodzin znaczeniowych nie został załadowany.');
+        }
+        const rawRecords = await getAllWordRecords();
+        if (rawRecords.length === 0) {
+            await putMeta({
+                key: MORPHOLOGY_SCHEMA_KEY,
+                version: globalThis.GlyphMorphology.version,
+                migratedAt: new Date().toISOString(),
+            });
+            return { migrated: 0, families: 0, legacyAliases: 0 };
+        }
+        const pending = rawRecords.some(record => (
+            Number(record.morphologyVersion) < globalThis.GlyphMorphology.version || !record.familyKey
+        ));
+        let job = await getMeta(MORPHOLOGY_JOB_KEY);
+        if (!pending && !job) return { migrated: 0, families: new Set(rawRecords.map(record => record.familyKey)).size, legacyAliases: 0 };
+
+        const migration = globalThis.GlyphMorphology.migrateEntries(rawRecords, { preserveLegacy: true });
+        if (!job) {
+            await startMorphologyMigrationJob(migration.entries.length);
+            job = await getMeta(MORPHOLOGY_JOB_KEY);
+        }
+        const startIndex = Math.max(0, Math.min(migration.entries.length, Number(job?.index) || 0));
+        setStatus(
+            `Aktualizuję starą bazę do rodzin znaczeniowych: ${startIndex.toLocaleString('pl-PL')}/${migration.entries.length.toLocaleString('pl-PL')}…`
+        );
+
+        for (let offset = startIndex; offset < migration.entries.length; offset += IMPORT_BATCH_SIZE) {
+            const sourceBatch = migration.entries.slice(offset, offset + IMPORT_BATCH_SIZE);
+            const records = sourceBatch.map(source => createImportRecords(
+                source.word,
+                source.sourceName || 'migracja-poprzedniej-wersji',
+                source.importedAt || new Date().toISOString(),
+                source,
+            ));
+            job.index = offset + sourceBatch.length;
+            job.total = migration.entries.length;
+            job.updatedAt = new Date().toISOString();
+            await saveImportBatch(records, job);
+            records.forEach(record => words.set(record.word.key, asBulkEntry(record.word)));
+            if (job.index % (IMPORT_BATCH_SIZE * 10) === 0 || job.index >= migration.entries.length) {
+                setStatus(
+                    `Migracja rodzin znaczeniowych: ${job.index.toLocaleString('pl-PL')}/${migration.entries.length.toLocaleString('pl-PL')} • ${migration.statistics.families.toLocaleString('pl-PL')} rodzin • zachowane aliasy starych glifów: ${migration.statistics.legacyAliases.toLocaleString('pl-PL')}`
+                );
+                await refreshStats();
+                refreshMainInterface();
+            }
+            await new Promise(resolve => setTimeout(resolve, 0));
+        }
+
+        await deleteMeta(MORPHOLOGY_JOB_KEY);
+        await putMeta({
+            key: MORPHOLOGY_SCHEMA_KEY,
+            version: globalThis.GlyphMorphology.version,
+            migratedAt: new Date().toISOString(),
+            words: migration.entries.length,
+            families: migration.statistics.families,
+        });
+        return {
+            migrated: migration.entries.length,
+            families: migration.statistics.families,
+            legacyAliases: migration.statistics.legacyAliases,
+        };
+    }
+
+    async function reconcileMorphologyFamilies() {
+        if (!globalThis.GlyphMorphology?.migrateEntries || words.size === 0) return { updated: 0 };
+        const rawRecords = await getAllWordRecords();
+        const migration = globalThis.GlyphMorphology.migrateEntries(rawRecords, { preserveLegacy: true });
+        const previousByKey = new Map(rawRecords.map(record => [record.key, record]));
+        const changed = migration.entries.filter(entry => {
+            const previous = previousByKey.get(entry.key);
+            return !previous ||
+                previous.familyKey !== entry.familyKey ||
+                Number(previous.modifierCode) !== Number(entry.modifierCode) ||
+                Number(previous.familyVariantSeed ?? previous.variantSeed) !== Number(entry.familyVariantSeed ?? entry.variantSeed);
+        });
+        if (changed.length === 0) return { updated: 0, families: migration.statistics.families };
+
+        setStatus(`Łączę nowe hasła z istniejącymi rodzinami: 0/${changed.length.toLocaleString('pl-PL')}…`);
+        for (let offset = 0; offset < changed.length; offset += IMPORT_BATCH_SIZE) {
+            const sourceBatch = changed.slice(offset, offset + IMPORT_BATCH_SIZE);
+            const dbHandle = await openDatabase();
+            const cleanup = dbHandle.transaction([SIGNATURE_STORE, PNG_STORE], 'readwrite');
+            sourceBatch.forEach(source => {
+                cleanup.objectStore(SIGNATURE_STORE).delete(source.key);
+                cleanup.objectStore(SIGNATURE_STORE).delete(`legacy:${source.key}`);
+                cleanup.objectStore(PNG_STORE).delete(source.key);
+            });
+            await transactionDone(cleanup);
+            const records = sourceBatch.map(source => createImportRecords(
+                source.word,
+                source.sourceName || 'uzgadnianie-rodzin',
+                source.importedAt || new Date().toISOString(),
+                source,
+            ));
+            await saveBackupBatch(records);
+            records.forEach(record => words.set(record.word.key, asBulkEntry(record.word)));
+            if (offset % (IMPORT_BATCH_SIZE * 10) === 0 || offset + sourceBatch.length >= changed.length) {
+                setStatus(`Łączenie rodzin: ${Math.min(changed.length, offset + sourceBatch.length).toLocaleString('pl-PL')}/${changed.length.toLocaleString('pl-PL')}…`);
+            }
+            await new Promise(resolve => setTimeout(resolve, 0));
+        }
+        return { updated: changed.length, families: migration.statistics.families };
     }
 
     function deterministicSeed(key) {
@@ -311,56 +483,101 @@
         return Math.imul(hash, 16777619) >>> 0;
     }
 
+    function signatureRecordFromTemplate(signatureKey, entryKey, template, templateKind = 'current') {
+        const keys = binaryLshKeys(template.map);
+        return {
+            key: signatureKey,
+            entryKey,
+            templateKind,
+            packedBits: packBits(template.map.bits),
+            features: new Uint16Array(template.map.features),
+            count: template.map.count,
+            aspect: template.map.aspect,
+            fingerprint: template.fingerprint,
+            l0: keys[0],
+            l1: keys[1],
+            l2: keys[2],
+            l3: keys[3],
+            l4: keys[4],
+            l5: keys[5],
+            l6: keys[6],
+            l7: keys[7],
+            l8: keys[8],
+            l9: keys[9],
+            l10: keys[10],
+            l11: keys[11],
+            exactHash: binaryExactHash(template.map),
+            inkBucket: Math.round(template.map.count / 18),
+        };
+    }
+
     function createImportRecords(word, sourceName, importedAt, options = {}) {
         const key = normalizeDictionaryKey(word);
-        const variantSeed = options.variantSeed !== null && options.variantSeed !== '' && Number.isFinite(Number(options.variantSeed))
-            ? Number(options.variantSeed) >>> 0
-            : deterministicSeed(key);
+        const familyKey = normalizeDictionaryKey(options.familyKey || options.lemma || key) || key;
+        const seedSource = options.familyVariantSeed ?? options.variantSeed;
+        const variantSeed = seedSource !== null && seedSource !== '' && Number.isFinite(Number(seedSource))
+            ? Number(seedSource) >>> 0
+            : deterministicSeed(familyKey);
         const generatorVersion = options.generatorVersion !== null && options.generatorVersion !== '' && Number.isFinite(Number(options.generatorVersion))
             ? Number(options.generatorVersion)
             : GENERATOR_VERSION;
         const entry = {
             word: String(word).normalize('NFC').trim(),
             key,
-            glyphWord: key,
+            lemma: options.lemma || familyKey,
+            familyKey,
+            glyphWord: familyKey,
+            modifierCode: Number(options.modifierCode) || 0,
+            morphologyRelation: options.morphologyRelation || (familyKey === key ? 'base' : 'related'),
+            morphologySource: options.morphologySource || 'heuristic',
+            morphologyVersion: Number(options.morphologyVersion) || globalThis.GlyphMorphology?.version || 1,
+            familyVariantSeed: variantSeed,
             variantSeed,
             generatorVersion,
             timestamp: importedAt,
             isBulk: true,
         };
         const template = createBinaryGlyphTemplate(entry);
-        const keys = binaryLshKeys(template.map);
+        const signatures = [signatureRecordFromTemplate(key, key, template)];
+
+        const legacyGlyphWord = normalizeDictionaryKey(options.legacyGlyphWord || '');
+        if (legacyGlyphWord) {
+            const legacyEntry = {
+                ...entry,
+                glyphWord: legacyGlyphWord,
+                familyKey: legacyGlyphWord,
+                modifierCode: 0,
+                variantSeed: options.legacyVariantSeed ?? null,
+                familyVariantSeed: options.legacyVariantSeed ?? null,
+                generatorVersion: options.legacyGeneratorVersion ?? options.generatorVersion ?? 1,
+            };
+            const legacyTemplate = createBinaryGlyphTemplate(legacyEntry);
+            if (legacyTemplate.fingerprint !== template.fingerprint) {
+                signatures.push(signatureRecordFromTemplate(`legacy:${key}`, key, legacyTemplate, 'legacy'));
+            }
+        }
         return {
             word: {
                 key,
                 word: entry.word,
+                lemma: entry.lemma,
+                familyKey,
+                glyphWord: familyKey,
+                modifierCode: entry.modifierCode,
+                morphologyRelation: entry.morphologyRelation,
+                morphologySource: entry.morphologySource,
+                morphologyVersion: entry.morphologyVersion,
+                familyVariantSeed: variantSeed,
                 variantSeed,
                 generatorVersion,
                 importedAt,
                 sourceName,
+                legacyGlyphWord: legacyGlyphWord || '',
+                legacyVariantSeed: options.legacyVariantSeed ?? null,
+                legacyGeneratorVersion: options.legacyGeneratorVersion ?? null,
             },
-            signature: {
-                key,
-                packedBits: packBits(template.map.bits),
-                features: new Uint16Array(template.map.features),
-                count: template.map.count,
-                aspect: template.map.aspect,
-                fingerprint: template.fingerprint,
-                l0: keys[0],
-                l1: keys[1],
-                l2: keys[2],
-                l3: keys[3],
-                l4: keys[4],
-                l5: keys[5],
-                l6: keys[6],
-                l7: keys[7],
-                l8: keys[8],
-                l9: keys[9],
-                l10: keys[10],
-                l11: keys[11],
-                exactHash: binaryExactHash(template.map),
-                inkBucket: Math.round(template.map.count / 18),
-            },
+            signature: signatures[0],
+            signatures,
             entry,
         };
     }
@@ -376,7 +593,13 @@
         const source = Array.isArray(value)
             ? value
             : (Array.isArray(value?.words) ? value.words : (Array.isArray(value?.entries) ? value.entries : []));
-        return source.map(item => typeof item === 'string' ? item : (item?.word ?? item?.haslo ?? item?.lemma ?? ''));
+        return source.map(item => typeof item === 'string'
+            ? { word: item }
+            : {
+                ...item,
+                word: item?.word ?? item?.haslo ?? item?.hasło ?? item?.surface ?? item?.lemma ?? '',
+                explicitLemma: item?.explicitLemma ?? item?.lemma ?? item?.baseWord ?? item?.base ?? '',
+            });
     }
 
     async function parseDictionaryFile(file) {
@@ -394,28 +617,29 @@
             rawWords = lines.map(line => {
                 const cleaned = line.trim().replace(/\s+#.*$/u, '');
                 const slash = cleaned.indexOf('/');
-                return slash >= 0 ? cleaned.slice(0, slash) : cleaned;
+                return { word: slash >= 0 ? cleaned.slice(0, slash) : cleaned };
             });
         } else if (extension === 'csv') {
             rawWords = text.split(/\r?\n/u).map(line => {
                 const value = line.split(/[;,\t]/u)[0] || '';
-                return value.replace(/^\s*["']|["']\s*$/gu, '');
+                return { word: value.replace(/^\s*["']|["']\s*$/gu, '') };
             });
         } else {
-            rawWords = text.split(/[\s,;]+/u);
+            rawWords = text.split(/[\s,;]+/u).map(word => ({ word }));
         }
 
         const unique = new Map();
         let invalidCount = 0;
         rawWords.forEach(value => {
-            const word = normalizeImportedWord(value);
+            const source = typeof value === 'string' ? { word: value } : value;
+            const word = normalizeImportedWord(source?.word);
             if (!word) {
-                if (String(value ?? '').trim()) invalidCount++;
+                if (String(source?.word ?? '').trim()) invalidCount++;
                 return;
             }
             const key = normalizeDictionaryKey(word);
             if (['word', 'words', 'słowo', 'słowa', 'hasło', 'hasła', 'lemma'].includes(key)) return;
-            if (!unique.has(key)) unique.set(key, word);
+            if (!unique.has(key)) unique.set(key, { ...source, word, key });
         });
         if (unique.size > MAX_IMPORT_WORDS_PER_FILE) {
             throw new Error(`Paczka zawiera ponad ${MAX_IMPORT_WORDS_PER_FILE.toLocaleString('pl-PL')} unikalnych haseł. Podziel ją na mniejsze pliki.`);
@@ -430,7 +654,7 @@
         const signatureStore = transaction.objectStore(SIGNATURE_STORE);
         records.forEach(record => {
             wordStore.put(record.word);
-            signatureStore.put(record.signature);
+            (record.signatures || [record.signature]).forEach(signature => signatureStore.put(signature));
         });
         transaction.objectStore(META_STORE).put(job);
         await transactionDone(transaction);
@@ -443,7 +667,7 @@
         const signatureStore = transaction.objectStore(SIGNATURE_STORE);
         records.forEach(record => {
             wordStore.put(record.word);
-            signatureStore.put(record.signature);
+            (record.signatures || [record.signature]).forEach(signature => signatureStore.put(signature));
         });
         await transactionDone(transaction);
     }
@@ -479,14 +703,16 @@
                 const sourceBatch = job.words.slice(job.index, job.index + IMPORT_BATCH_SIZE);
                 const records = [];
                 const importedAt = new Date().toISOString();
-                for (const word of sourceBatch) {
+                for (const value of sourceBatch) {
+                    const source = typeof value === 'string' ? { word: value } : value;
+                    const word = source.word;
                     const key = normalizeDictionaryKey(word);
                     const localExists = typeof findLocalWord === 'function' && findLocalWord(db, word);
                     if (words.has(key) || localExists) {
                         job.skipped = (job.skipped || 0) + 1;
                         continue;
                     }
-                    records.push(createImportRecords(word, job.fileName, importedAt));
+                    records.push(createImportRecords(word, job.fileName, importedAt, source));
                 }
                 job.index += sourceBatch.length;
                 job.added = (job.added || 0) + records.length;
@@ -512,8 +738,9 @@
                     elements.importPause.textContent = 'Pauza importu';
                 }
                 if (elements.importSelect) elements.importSelect.disabled = false;
+                const reconciliation = await reconcileMorphologyFamilies();
                 setStatus(
-                    `Import paczki zakończony. Dodano ${job.added.toLocaleString('pl-PL')} haseł, pominięto ${job.skipped.toLocaleString('pl-PL')} duplikatów. Możesz wczytać następną paczkę.`,
+                    `Import paczki zakończony. Dodano ${job.added.toLocaleString('pl-PL')} haseł, pominięto ${job.skipped.toLocaleString('pl-PL')} duplikatów.${reconciliation.updated ? ` Do istniejących rodzin dołączono ponownie ${reconciliation.updated.toLocaleString('pl-PL')} wcześniejszych form.` : ''} Możesz wczytać następną paczkę.`,
                     'success'
                 );
                 await refreshStats();
@@ -555,11 +782,18 @@
         try {
             const parsed = await parseDictionaryFile(file);
             if (parsed.words.length === 0) throw new Error('Nie znaleziono poprawnych haseł. Użyj TXT, CSV, JSON lub Hunspell DIC.');
+            const localReferences = typeof db !== 'undefined' && Array.isArray(db.words) ? db.words : [];
+            const prepared = globalThis.GlyphMorphology?.migrateEntries
+                ? globalThis.GlyphMorphology.migrateEntries(parsed.words, {
+                    knownEntries: [...morphologyReferences(), ...localReferences],
+                    preserveLegacy: false,
+                }).entries
+                : parsed.words;
             const job = {
                 key: IMPORT_JOB_KEY,
                 version: 1,
                 fileName: file.name,
-                words: parsed.words,
+                words: prepared,
                 index: 0,
                 added: 0,
                 skipped: 0,
@@ -569,7 +803,8 @@
             };
             await putMeta(job);
             updateImportProgress(job);
-            setStatus(`Rozpoczynam indeksowanie ${parsed.words.length.toLocaleString('pl-PL')} haseł z paczki. Niepoprawne wpisy: ${parsed.invalidCount.toLocaleString('pl-PL')}.`);
+            const familyCount = new Set(prepared.map(entry => entry.familyKey || entry.word)).size;
+            setStatus(`Rozpoczynam indeksowanie ${prepared.length.toLocaleString('pl-PL')} haseł w ${familyCount.toLocaleString('pl-PL')} rodzinach znaczeniowych. Niepoprawne wpisy: ${parsed.invalidCount.toLocaleString('pl-PL')}.`);
             await runImportJob();
         } catch (error) {
             console.error('Nie udało się rozpocząć importu:', error);
@@ -596,11 +831,12 @@
 
     function signatureToTemplate(record) {
         const bits = unpackBits(record.packedBits);
-        const entry = words.get(record.key);
+        const entry = words.get(record.entryKey || record.key);
         if (!entry) return null;
         return {
             entry,
             fingerprint: record.fingerprint,
+            templateKind: record.templateKind || 'current',
             map: {
                 bits,
                 dilatedBits: dilateBinaryBits(bits),
@@ -711,6 +947,9 @@
                     records.push({
                         key,
                         word: entry.word,
+                        lemma: entry.lemma,
+                        familyKey: entry.familyKey,
+                        modifierCode: entry.modifierCode,
                         blob,
                         width: 520,
                         height: 520,
@@ -808,13 +1047,20 @@
                 const number = String(offset + index + 1).padStart(6, '0');
                 const fileName = `${number}-${sanitizeFileName(record.word)}.png`;
                 files.push({ name: fileName, data: new Uint8Array(await record.blob.arrayBuffer()) });
-                manifest.push({ file: fileName, word: record.word, key: record.key });
+                manifest.push({
+                    file: fileName,
+                    word: record.word,
+                    key: record.key,
+                    lemma: record.lemma || record.familyKey || record.word,
+                    familyKey: record.familyKey || record.word,
+                    modifierCode: Number(record.modifierCode) || 0,
+                });
             }
             files.push({
                 name: 'slownik-paczka.json',
                 data: new TextEncoder().encode(JSON.stringify({
                     format: 'GLYPH-OS-PNG-BATCH',
-                    version: 1,
+                    version: 2,
                     from: offset + 1,
                     to: offset + records.length,
                     totalCached: keys.length,
@@ -841,10 +1087,21 @@
         return [...words.values()].map(entry => ({
             word: entry.word,
             key: entry.key,
+            lemma: entry.lemma,
+            familyKey: entry.familyKey,
+            glyphWord: entry.glyphWord,
+            modifierCode: entry.modifierCode,
+            morphologyRelation: entry.morphologyRelation,
+            morphologySource: entry.morphologySource,
+            morphologyVersion: entry.morphologyVersion,
+            familyVariantSeed: entry.familyVariantSeed,
             variantSeed: entry.variantSeed,
             generatorVersion: entry.generatorVersion,
             importedAt: entry.timestamp || null,
             sourceName: entry.sourceName || '',
+            legacyGlyphWord: entry.legacyGlyphWord || '',
+            legacyVariantSeed: entry.legacyVariantSeed ?? null,
+            legacyGeneratorVersion: entry.legacyGeneratorVersion ?? null,
         }));
     }
 
@@ -859,9 +1116,16 @@
             throw new Error('Najpierw dokończ rozpoczęty import paczki słownika.');
         }
 
+        const localReferences = typeof db !== 'undefined' && Array.isArray(db.words) ? db.words : [];
+        const preparedSources = globalThis.GlyphMorphology?.migrateEntries
+            ? globalThis.GlyphMorphology.migrateEntries(sourceRecords, {
+                knownEntries: [...morphologyReferences(), ...localReferences],
+                preserveLegacy: true,
+            }).entries
+            : sourceRecords;
         const unique = new Map();
         let invalid = 0;
-        sourceRecords.forEach(source => {
+        preparedSources.forEach(source => {
             const rawWord = typeof source === 'string' ? source : source?.word;
             const word = normalizeImportedWord(rawWord);
             if (!word) {
@@ -870,6 +1134,7 @@
             }
             const key = normalizeDictionaryKey(word);
             if (!unique.has(key)) unique.set(key, {
+                ...(typeof source === 'object' ? source : {}),
                 word,
                 key,
                 variantSeed: typeof source === 'object' ? source.variantSeed : null,
@@ -921,9 +1186,10 @@
         } finally {
             if (elements.importSelect) elements.importSelect.disabled = false;
         }
+        const reconciliation = await reconcileMorphologyFamilies();
         await refreshStats();
         refreshMainInterface();
-        return { processed, added, skipped, invalid, total: records.length };
+        return { processed, added, skipped, invalid, total: records.length, reconciled: reconciliation.updated || 0 };
     }
 
     function downloadCombinedWordList() {
@@ -961,6 +1227,7 @@
         const transaction = database.transaction([WORD_STORE, SIGNATURE_STORE, PNG_STORE], 'readwrite');
         transaction.objectStore(WORD_STORE).delete(key);
         transaction.objectStore(SIGNATURE_STORE).delete(key);
+        transaction.objectStore(SIGNATURE_STORE).delete(`legacy:${key}`);
         transaction.objectStore(PNG_STORE).delete(key);
         await transactionDone(transaction);
         words.delete(key);
@@ -1017,6 +1284,7 @@
 
     function bindElements() {
         elements.words = document.getElementById('bulkWordCount');
+        elements.families = document.getElementById('bulkFamilyCount');
         elements.signatures = document.getElementById('bulkSignatureCount');
         elements.png = document.getElementById('bulkPngCount');
         elements.storage = document.getElementById('bulkStorage');
@@ -1075,6 +1343,7 @@
         try {
             await openDatabase();
             await loadWordsIntoMemory();
+            const migration = await ensureMorphologyMigration();
             const importJob = await getMeta(IMPORT_JOB_KEY);
             if (importJob && Array.isArray(importJob.words) && importJob.index < importJob.words.length) {
                 importPaused = true;
@@ -1085,7 +1354,7 @@
                 setStatus(`Znaleziono niedokończoną paczkę „${importJob.fileName}”: ${importJob.index.toLocaleString('pl-PL')}/${importJob.words.length.toLocaleString('pl-PL')}. Kliknij „Wznów import”.`);
             } else {
                 setStatus(words.size > 0
-                    ? `Słownik masowy gotowy: ${words.size.toLocaleString('pl-PL')} haseł. Możesz dołożyć następną paczkę.`
+                    ? `Słownik masowy gotowy: ${words.size.toLocaleString('pl-PL')} haseł${migration.families ? ` w ${migration.families.toLocaleString('pl-PL')} rodzinach znaczeniowych` : ''}. Możesz dołożyć następną paczkę.`
                     : 'Słownik masowy jest pusty. Wczytaj pierwszą paczkę TXT, CSV, JSON lub Hunspell DIC.');
             }
             const pngJob = await getMeta(PNG_JOB_KEY);
@@ -1112,12 +1381,15 @@
         count: () => words.size,
         totalUniqueCount: getTotalUniqueCount,
         findWord: getWord,
+        findFamily,
+        morphologyReferences,
         search: searchWords,
         recent: recentWords,
         randomWord,
         matchBinaryMap,
         exportBackupRecords,
         importBackupRecords,
+        reconcileMorphology: reconcileMorphologyFamilies,
         downloadCombinedWordList,
         removeWord,
         clear: clearDatabase,

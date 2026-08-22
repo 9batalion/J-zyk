@@ -8,7 +8,7 @@ Repozytorium było jednak przetwarzane przez Jekyll, mimo że Glyph OS jest zwyk
 
 ## Aktualizacja repozytorium
 
-1. Rozpakuj `glyph-os-pwa-fixed.zip`.
+1. Rozpakuj najnowszą paczkę projektu Glyph OS.
 2. Wgraj do głównego katalogu gałęzi `main` całą zawartość archiwum, łącznie z ukrytym plikiem `.nojekyll`.
 3. Zachowaj katalogi `icons` i `vendor` — nie przenoś ich zawartości do katalogu głównego.
 4. W ustawieniach repozytorium otwórz `Settings` → `Pages`.
