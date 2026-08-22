@@ -3,7 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Generator Języka Obrazowego — Słownik Wizualny</title>
+    <meta name="theme-color" content="#050914">
+    <meta name="description" content="Cybernetyczny generator własnego języka symboli z rozpoznawaniem obrazów i trybem offline.">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Glyph OS">
+    <link rel="manifest" href="./manifest.webmanifest">
+    <link rel="apple-touch-icon" href="./icons/icon-192.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png">
+    <title>Glyph OS // Język Obrazowy</title>
     <style>
         :root {
             --bg-dark: #12121e;
@@ -448,6 +457,193 @@
             flex-basis: 100%;
         }
 
+        /* ============ SENTENCE MODE ============ */
+        .sentence-section {
+            margin-top: 28px;
+        }
+        .sentence-intro {
+            color: var(--text-muted);
+            margin-bottom: 16px;
+            font-size: 0.95rem;
+            line-height: 1.55;
+        }
+        .sentence-input {
+            width: 100%;
+            min-height: 108px;
+            resize: vertical;
+            padding: 14px 16px;
+            border-radius: var(--radius-sm);
+            border: 2px solid var(--border);
+            background: #252538;
+            color: var(--text);
+            font: 1rem/1.5 inherit;
+            outline: none;
+            transition: border-color var(--transition), box-shadow var(--transition);
+        }
+        .sentence-input:focus {
+            border-color: var(--gold);
+            box-shadow: 0 0 20px rgba(212, 164, 74, 0.15);
+        }
+        .sentence-input::placeholder {
+            color: var(--text-muted);
+        }
+        .sentence-toolbar {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin: 12px 0;
+        }
+        .sentence-summary {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            min-height: 30px;
+            margin-bottom: 12px;
+        }
+        .sentence-badge {
+            display: inline-flex;
+            align-items: center;
+            border-radius: 999px;
+            padding: 5px 10px;
+            background: #2a2a3e;
+            color: var(--text-muted);
+            font-size: 0.82rem;
+            border: 1px solid var(--border);
+        }
+        .sentence-badge.ok {
+            color: var(--success);
+            border-color: rgba(88, 160, 96, 0.45);
+        }
+        .sentence-badge.missing {
+            color: var(--danger);
+            border-color: rgba(192, 88, 88, 0.5);
+        }
+        .sentence-output {
+            min-height: 144px;
+            display: flex;
+            align-items: flex-start;
+            align-content: flex-start;
+            flex-wrap: wrap;
+            gap: 10px;
+            padding: 14px;
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border);
+            background: rgba(13, 13, 22, 0.38);
+        }
+        .sentence-empty {
+            width: 100%;
+            color: var(--text-muted);
+            text-align: center;
+            padding: 42px 16px;
+            font-style: italic;
+        }
+        .sentence-token {
+            width: 94px;
+            min-height: 118px;
+            border-radius: var(--radius-sm);
+            border: 1px solid transparent;
+            background: #252538;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            padding: 7px;
+            cursor: pointer;
+            transition: transform var(--transition), border-color var(--transition);
+        }
+        .sentence-token:hover,
+        .sentence-token:focus-visible {
+            transform: translateY(-2px);
+            border-color: var(--gold);
+            outline: none;
+        }
+        .sentence-token canvas {
+            width: 78px;
+            height: 78px;
+            border-radius: 4px;
+            background: var(--bg-canvas);
+        }
+        .sentence-token-index {
+            color: var(--text-muted);
+            font-size: 0.7rem;
+            margin-top: 4px;
+        }
+        .sentence-token-label {
+            width: 100%;
+            color: var(--gold-bright);
+            font-size: 0.76rem;
+            line-height: 1.2;
+            text-align: center;
+            word-break: break-word;
+            margin-top: 3px;
+            opacity: 0;
+            transform: translateY(-2px);
+            transition: opacity var(--transition), transform var(--transition);
+        }
+        .sentence-token.revealed .sentence-token-label,
+        .sentence-output.show-labels .sentence-token-label {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        .sentence-token.unknown {
+            border-color: rgba(192, 88, 88, 0.55);
+            background: rgba(192, 88, 88, 0.1);
+        }
+        .sentence-token.unknown canvas {
+            opacity: 0.65;
+        }
+        .sentence-token.unknown .sentence-token-label {
+            color: var(--danger);
+            opacity: 1;
+            transform: none;
+        }
+        .sentence-punctuation {
+            min-width: 30px;
+            height: 92px;
+            display: inline-flex;
+            align-items: flex-end;
+            justify-content: center;
+            padding: 0 2px 18px;
+            color: var(--gold-bright);
+            font-size: 2rem;
+            font-weight: 700;
+        }
+        .sentence-feedback {
+            margin-top: 12px;
+            min-height: 44px;
+            padding: 10px 14px;
+            border-radius: var(--radius-sm);
+            color: var(--text-muted);
+            background: rgba(42, 42, 62, 0.55);
+            border: 1px solid var(--border);
+            line-height: 1.45;
+        }
+        .sentence-feedback.success {
+            color: var(--success);
+            border-color: rgba(88, 160, 96, 0.45);
+            background: rgba(88, 160, 96, 0.08);
+        }
+        .sentence-feedback.warning {
+            color: var(--danger);
+            border-color: rgba(192, 88, 88, 0.45);
+            background: rgba(192, 88, 88, 0.08);
+        }
+
+        @media (max-width: 600px) {
+            .sentence-toolbar .btn {
+                flex: 1 1 calc(50% - 10px);
+                padding-inline: 12px;
+            }
+            .sentence-output {
+                gap: 7px;
+                padding: 10px;
+            }
+            .sentence-token {
+                width: calc(33.333% - 5px);
+                min-width: 82px;
+            }
+        }
+
         /* ============ FOOTER ============ */
         footer {
             text-align: center;
@@ -499,22 +695,518 @@
             border-radius: 20px;
             display: inline-block;
         }
+
+        /* ============ CYBER INTERFACE V1 ============ */
+        :root {
+            --bg-dark: #03060d;
+            --bg-card: rgba(7, 15, 29, 0.91);
+            --bg-canvas: #edf2ee;
+            --ink: #102d2a;
+            --gold: #5df4ff;
+            --gold-bright: #b9fbff;
+            --gold-dim: #087d96;
+            --text: #e8fbff;
+            --text-muted: #8ba9b8;
+            --text-dark: #071019;
+            --border: rgba(93, 244, 255, 0.19);
+            --danger: #ff5f7f;
+            --success: #52ffc8;
+            --purple: #a879ff;
+            --panel-deep: #07101e;
+            --shadow: 0 22px 64px rgba(0, 0, 0, 0.55), 0 0 30px rgba(55, 215, 255, 0.035);
+            --radius: 12px;
+            --radius-sm: 7px;
+            --transition: 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+        }
+
+        html {
+            background: #03060d;
+            color-scheme: dark;
+            scroll-behavior: smooth;
+        }
+
+        body {
+            position: relative;
+            overflow-x: hidden;
+            font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background-color: var(--bg-dark);
+            background-image:
+                radial-gradient(circle at 12% -8%, rgba(0, 229, 255, 0.16), transparent 34%),
+                radial-gradient(circle at 92% 12%, rgba(168, 121, 255, 0.13), transparent 30%),
+                linear-gradient(rgba(93, 244, 255, 0.025) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(93, 244, 255, 0.025) 1px, transparent 1px),
+                linear-gradient(180deg, #050914 0%, #03060d 65%, #06040d 100%);
+            background-size: auto, auto, 38px 38px, 38px 38px, auto;
+            background-attachment: fixed;
+        }
+
+        body::before {
+            content: "";
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 50;
+            opacity: 0.16;
+            background: repeating-linear-gradient(
+                180deg,
+                transparent 0,
+                transparent 3px,
+                rgba(141, 246, 255, 0.045) 4px
+            );
+            mix-blend-mode: screen;
+        }
+
+        .container {
+            position: relative;
+            z-index: 1;
+            max-width: 1180px;
+        }
+
+        header {
+            margin: 8px 0 34px;
+            padding: 34px 24px 28px;
+            border: 1px solid rgba(93, 244, 255, 0.14);
+            border-radius: var(--radius);
+            background:
+                linear-gradient(135deg, rgba(10, 28, 48, 0.88), rgba(6, 10, 24, 0.9)),
+                radial-gradient(circle at 50% 0%, rgba(93, 244, 255, 0.12), transparent 62%);
+            box-shadow: var(--shadow);
+            overflow: hidden;
+        }
+
+        header::before,
+        header::after {
+            content: "";
+            position: absolute;
+            width: 92px;
+            height: 28px;
+            border-color: var(--gold);
+            opacity: 0.55;
+        }
+
+        header::before {
+            top: 10px;
+            left: 10px;
+            border-top: 1px solid;
+            border-left: 1px solid;
+        }
+
+        header::after {
+            right: 10px;
+            bottom: 10px;
+            border-right: 1px solid;
+            border-bottom: 1px solid;
+        }
+
+        .system-kicker {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 14px;
+            color: var(--gold);
+            font: 700 0.72rem/1.2 ui-monospace, "SFMono-Regular", Consolas, monospace;
+            letter-spacing: 0.19em;
+        }
+
+        .system-dot,
+        .pwa-status > span {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: var(--success);
+            box-shadow: 0 0 12px var(--success);
+            animation: cyberBlink 2.1s ease-in-out infinite;
+        }
+
+        header h1 {
+            margin-bottom: 12px;
+            color: var(--text);
+            font-size: clamp(2.15rem, 7vw, 4.2rem);
+            font-weight: 850;
+            line-height: 0.98;
+            letter-spacing: -0.045em;
+            text-transform: uppercase;
+            text-shadow: 0 0 35px rgba(93, 244, 255, 0.2);
+        }
+
+        header h1 span {
+            color: var(--purple);
+            font: 500 0.68em/1 ui-monospace, "SFMono-Regular", Consolas, monospace;
+            letter-spacing: -0.13em;
+            text-shadow: 0 0 24px rgba(168, 121, 255, 0.5);
+        }
+
+        header p {
+            color: #9bb5c4;
+            max-width: 760px;
+            font-size: 1rem;
+        }
+
+        header .ornament {
+            width: min(430px, 74vw);
+            height: 1px;
+            margin-top: 20px;
+            background: linear-gradient(90deg, transparent, var(--purple), var(--gold), var(--purple), transparent);
+            box-shadow: 0 0 12px rgba(93, 244, 255, 0.35);
+        }
+
+        .pwa-controls {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 18px;
+        }
+
+        .pwa-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            min-height: 34px;
+            padding: 7px 12px;
+            border: 1px solid rgba(93, 244, 255, 0.18);
+            border-radius: 999px;
+            color: var(--text-muted);
+            background: rgba(2, 8, 16, 0.58);
+            font: 700 0.7rem/1 ui-monospace, "SFMono-Regular", Consolas, monospace;
+            letter-spacing: 0.1em;
+        }
+
+        .pwa-status.offline > span {
+            background: var(--danger);
+            box-shadow: 0 0 12px var(--danger);
+        }
+
+        .btn-install {
+            padding: 9px 14px;
+            border: 1px solid rgba(168, 121, 255, 0.55);
+            color: #e4d7ff;
+            background: rgba(168, 121, 255, 0.12);
+            box-shadow: inset 0 0 18px rgba(168, 121, 255, 0.06), 0 0 20px rgba(168, 121, 255, 0.08);
+            font-size: 0.72rem;
+        }
+
+        .btn-install:hover {
+            border-color: var(--purple);
+            background: rgba(168, 121, 255, 0.22);
+        }
+
+        [hidden] {
+            display: none !important;
+        }
+
+        .main-grid {
+            gap: 22px;
+            margin-bottom: 22px;
+        }
+
+        .panel {
+            position: relative;
+            overflow: hidden;
+            padding: 24px;
+            background:
+                linear-gradient(145deg, rgba(10, 22, 39, 0.95), rgba(5, 11, 23, 0.96));
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            backdrop-filter: blur(16px);
+        }
+
+        .panel::before {
+            content: "";
+            position: absolute;
+            inset: 0 auto auto 0;
+            width: 100%;
+            height: 2px;
+            background: linear-gradient(90deg, var(--gold), var(--purple), transparent 75%);
+            opacity: 0.75;
+        }
+
+        .panel::after {
+            content: "";
+            position: absolute;
+            right: 0;
+            bottom: 0;
+            width: 34px;
+            height: 34px;
+            background: linear-gradient(135deg, transparent 48%, rgba(93, 244, 255, 0.28) 49%, rgba(93, 244, 255, 0.28) 52%, transparent 53%);
+            pointer-events: none;
+        }
+
+        .panel h2 {
+            color: var(--text);
+            font: 800 1.05rem/1.25 ui-monospace, "SFMono-Regular", Consolas, monospace;
+            letter-spacing: 0.075em;
+            text-transform: uppercase;
+        }
+
+        .panel h2 .icon {
+            display: inline-grid;
+            place-items: center;
+            width: 31px;
+            height: 31px;
+            border: 1px solid rgba(93, 244, 255, 0.5);
+            border-radius: 4px;
+            color: var(--gold);
+            background: rgba(93, 244, 255, 0.07);
+            box-shadow: inset 0 0 12px rgba(93, 244, 255, 0.06);
+            font-size: 0.72rem;
+        }
+
+        .input-row input,
+        .recognition-input-area input,
+        .sentence-input {
+            border: 1px solid rgba(93, 244, 255, 0.2);
+            border-radius: var(--radius-sm);
+            background: rgba(1, 7, 16, 0.72);
+            color: var(--text);
+            caret-color: var(--gold);
+            font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+            box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.28);
+        }
+
+        .input-row input:focus,
+        .recognition-input-area input:focus,
+        .sentence-input:focus {
+            border-color: var(--gold);
+            box-shadow: 0 0 0 3px rgba(93, 244, 255, 0.08), inset 0 0 20px rgba(0, 0, 0, 0.28);
+        }
+
+        .btn {
+            position: relative;
+            overflow: hidden;
+            border-radius: 5px;
+            font: 800 0.78rem/1.2 ui-monospace, "SFMono-Regular", Consolas, monospace;
+            letter-spacing: 0.055em;
+            text-transform: uppercase;
+        }
+
+        .btn::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(100deg, transparent 20%, rgba(255, 255, 255, 0.13), transparent 80%);
+            transform: translateX(-120%);
+            transition: transform 0.45s ease;
+        }
+
+        .btn:hover::after {
+            transform: translateX(120%);
+        }
+
+        .btn-primary {
+            color: #021015;
+            border: 1px solid #74f7ff;
+            background: linear-gradient(135deg, #7df8ff, #1bc9e7);
+            box-shadow: 0 0 20px rgba(93, 244, 255, 0.2);
+        }
+
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #b8fcff, #53eafd);
+            box-shadow: 0 0 30px rgba(93, 244, 255, 0.36);
+        }
+
+        .btn-secondary {
+            border: 1px solid rgba(139, 169, 184, 0.28);
+            color: #c7e2ea;
+            background: rgba(33, 51, 70, 0.54);
+        }
+
+        .btn-secondary:hover {
+            border-color: rgba(93, 244, 255, 0.48);
+            color: #ffffff;
+            background: rgba(46, 72, 92, 0.7);
+        }
+
+        .btn-success {
+            color: #00130e;
+            border: 1px solid #70ffd7;
+            background: linear-gradient(135deg, #62ffd0, #1fbd98);
+            box-shadow: 0 0 20px rgba(82, 255, 200, 0.17);
+        }
+
+        .canvas-frame,
+        .recognition-canvas-frame {
+            border: 1px solid rgba(93, 244, 255, 0.42);
+            border-radius: 6px;
+            background: var(--bg-canvas);
+            box-shadow: 0 0 0 5px rgba(93, 244, 255, 0.025), 0 0 30px rgba(93, 244, 255, 0.12);
+        }
+
+        .canvas-frame::before,
+        .canvas-frame::after {
+            content: "";
+            position: absolute;
+            width: 30px;
+            height: 30px;
+            pointer-events: none;
+        }
+
+        .canvas-frame::before {
+            inset: -5px auto auto -5px;
+            border-top: 2px solid var(--gold);
+            border-left: 2px solid var(--gold);
+        }
+
+        .canvas-frame::after {
+            inset: auto -5px -5px auto;
+            border-right: 2px solid var(--purple);
+            border-bottom: 2px solid var(--purple);
+        }
+
+        .canvas-caption,
+        .generator-hint,
+        .sentence-intro,
+        .gallery-empty,
+        footer,
+        .recognition-section p {
+            color: var(--text-muted) !important;
+        }
+
+        .canvas-caption .highlight,
+        footer a {
+            color: var(--gold-bright);
+        }
+
+        .gallery {
+            padding: 5px 5px 5px 0;
+        }
+
+        .gallery-card,
+        .sentence-token {
+            border: 1px solid rgba(93, 244, 255, 0.12);
+            border-radius: 7px;
+            background: rgba(18, 35, 53, 0.72);
+        }
+
+        .gallery-card:hover,
+        .sentence-token:hover,
+        .sentence-token:focus-visible {
+            border-color: var(--gold);
+            box-shadow: 0 0 20px rgba(93, 244, 255, 0.12);
+        }
+
+        .gallery-card .word-label,
+        .sentence-token-label {
+            color: #c9f8fc;
+            font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+        }
+
+        .word-count,
+        .sentence-badge {
+            border: 1px solid rgba(93, 244, 255, 0.18);
+            color: #9dd6df;
+            background: rgba(4, 12, 22, 0.7);
+            font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+        }
+
+        .sentence-output {
+            border-color: rgba(93, 244, 255, 0.14);
+            background:
+                linear-gradient(rgba(93, 244, 255, 0.022) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(93, 244, 255, 0.022) 1px, transparent 1px),
+                rgba(1, 6, 14, 0.52);
+            background-size: 22px 22px;
+        }
+
+        .status-message,
+        .sentence-feedback {
+            border-radius: 6px;
+            font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+            font-size: 0.82rem;
+        }
+
+        .status-message.info,
+        .sentence-feedback {
+            color: #9bd6df;
+            border-color: rgba(93, 244, 255, 0.22);
+            background: rgba(21, 67, 79, 0.16);
+        }
+
+        .status-message.success,
+        .sentence-feedback.success {
+            color: var(--success);
+            border-color: rgba(82, 255, 200, 0.36);
+            background: rgba(82, 255, 200, 0.07);
+        }
+
+        .status-message.warning,
+        .sentence-feedback.warning {
+            color: #ff8ba3;
+            border-color: rgba(255, 95, 127, 0.4);
+            background: rgba(255, 95, 127, 0.07);
+        }
+
+        .recognition-feedback.correct {
+            color: var(--success);
+        }
+
+        footer {
+            border-top-color: rgba(93, 244, 255, 0.14);
+            font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+        }
+
+        @keyframes cyberBlink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.38; }
+        }
+
+        @media (max-width: 600px) {
+            body {
+                padding: 10px 10px calc(92px + env(safe-area-inset-bottom));
+            }
+
+            header {
+                margin-top: 0;
+                padding: 28px 14px 24px;
+            }
+
+            header h1 {
+                font-size: clamp(2rem, 11.5vw, 3rem);
+            }
+
+            .panel {
+                padding: 17px;
+            }
+
+            .panel h2 {
+                font-size: 0.92rem;
+            }
+
+            .input-row {
+                align-items: stretch;
+            }
+
+            .input-row input {
+                min-width: 0;
+            }
+
+            .btn {
+                white-space: normal;
+            }
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <!-- HEADER -->
         <header>
-            <h1>📜 Język Obrazowy</h1>
-            <p>Wpisz słowo, a generator stworzy dla niego unikalny, geometryczny znak inspirowany wzorem. Zapisz go w bazie i ucz się rozpoznawać własny język symboli.</p>
+            <div class="system-kicker"><span class="system-dot"></span> GLYPH OS // SYMBOLIC CORE</div>
+            <h1>JĘZYK <span>//</span> OBRAZOWY</h1>
+            <p>Twórz własne znaki dla słów, zapisuj je w bazie, a następnie układaj z nich pełne zdania, które program potrafi ponownie odczytać.</p>
             <div class="ornament"></div>
+            <div class="pwa-controls">
+                <span class="pwa-status" id="pwaStatus"><span></span> TRYB PRZEGLĄDARKI</span>
+                <button class="btn btn-install" id="installAppBtn" hidden>ZAINSTALUJ APLIKACJĘ</button>
+            </div>
         </header>
 
         <!-- MAIN GRID -->
         <div class="main-grid">
             <!-- LEFT PANEL: Generator -->
             <div class="panel">
-                <h2><span class="icon">✍️</span> Generator Znaku</h2>
+                <h2><span class="icon">01</span> Generator Znaku</h2>
                 <div class="input-row">
                     <input type="text" id="wordInput" placeholder="Wpisz słowo..." autocomplete="off" />
                     <button class="btn btn-primary" id="generateBtn">Generuj</button>
@@ -530,33 +1222,64 @@
                 </div>
                 <div class="status-message empty" id="statusMessage"></div>
                 <div class="button-row">
-                    <button class="btn btn-success" id="saveBtn" disabled>💾 Zapisz do bazy</button>
-                    <button class="btn btn-secondary" id="downloadBtn" disabled>⬇️ Pobierz PNG</button>
-                    <button class="btn btn-secondary" id="clearBtn">🗑️ Wyczyść</button>
+                    <button class="btn btn-success" id="saveBtn" disabled>Zapisz do bazy</button>
+                    <button class="btn btn-secondary" id="downloadBtn" disabled>Pobierz PNG</button>
+                    <button class="btn btn-secondary" id="clearBtn">Wyczyść</button>
                 </div>
             </div>
 
             <!-- RIGHT PANEL: Database -->
             <div class="panel">
                 <h2>
-                    <span class="icon">📚</span> Baza Słów
+                    <span class="icon">02</span> Baza Słów
                     <span class="word-count" id="wordCount">0 słów</span>
                 </h2>
                 <div class="gallery" id="gallery">
                     <div class="gallery-empty">Baza jest pusta.<br>Wygeneruj i zapisz pierwsze słowo!</div>
                 </div>
                 <div class="export-import">
-                    <button class="btn btn-secondary" id="exportBtn">📤 Eksportuj</button>
-                    <button class="btn btn-secondary" id="importBtn">📥 Importuj</button>
-                    <button class="btn btn-secondary btn-zip" id="downloadAllBtn" disabled>🗜️ Pobierz wszystkie PNG (ZIP)</button>
+                    <button class="btn btn-secondary" id="exportBtn">Eksportuj bazę</button>
+                    <button class="btn btn-secondary" id="importBtn">Importuj bazę</button>
+                    <button class="btn btn-secondary btn-zip" id="downloadAllBtn" disabled>Pobierz wszystkie PNG (ZIP)</button>
                     <input type="file" id="importFile" accept=".json" style="display:none;" />
                 </div>
             </div>
         </div>
 
+        <!-- SENTENCE MODE -->
+        <div class="panel sentence-section">
+            <h2><span class="icon">03</span> Generator Zdań</h2>
+            <p class="sentence-intro">
+                Wpisz pełne zdanie. Każde słowo zostanie zastąpione znakiem zapisanym w bazie,
+                a interpunkcja zachowa kolejność wypowiedzi. Odczyt PNG działa przez metadane oraz
+                własny silnik porównujący binarne mapy znaków z Twoją bazą. Możesz również wczytać
+                zwykły obraz zawierający same symbole — program wykryje wiersze i znaki od lewej do prawej.
+            </p>
+            <textarea
+                id="sentenceInput"
+                class="sentence-input"
+                maxlength="600"
+                placeholder="Np. Dzisiaj patrzę na gwiazdy i uczę się fizyki."
+            ></textarea>
+            <div class="sentence-toolbar">
+                <button class="btn btn-primary" id="sentenceGenerate">Generuj zdanie</button>
+                <button class="btn btn-secondary" id="sentenceRead" disabled>Odczytaj</button>
+                <button class="btn btn-secondary" id="sentenceDownload" disabled>Pobierz PNG</button>
+                <button class="btn btn-secondary" id="sentenceRecognize">Rozpoznaj obraz</button>
+                <input type="file" id="sentenceImportFile" accept="image/png,image/jpeg,.png,.jpg,.jpeg" style="display:none;" />
+            </div>
+            <div class="sentence-summary" id="sentenceSummary"></div>
+            <div class="sentence-output" id="sentenceOutput" aria-live="polite">
+                <div class="sentence-empty">Wygenerowane zdanie pojawi się tutaj.</div>
+            </div>
+            <div class="sentence-feedback" id="sentenceFeedback">
+                Do rozpoznawania zbioru symboli użyj jasnego tła i pozostaw widoczne odstępy między znakami.
+            </div>
+        </div>
+
         <!-- RECOGNITION MODE -->
         <div class="panel recognition-section">
-            <h2><span class="icon">🔍</span> Tryb Rozpoznawania</h2>
+            <h2><span class="icon">04</span> Tryb Rozpoznawania</h2>
             <p style="color:var(--text-muted); margin-bottom:16px; font-size:0.95rem;">
                 Zobacz znak i odgadnij, jakie słowo reprezentuje. Kliknij <strong>Losuj znak</strong>, aby rozpocząć.
             </p>
@@ -567,7 +1290,7 @@
                 <div class="recognition-input-area">
                     <input type="text" id="recognitionInput" placeholder="Twoje odgadnięcie..." autocomplete="off" />
                     <button class="btn btn-primary" id="recognitionCheck">Sprawdź</button>
-                    <button class="btn btn-secondary" id="recognitionRandom">🎲 Losuj znak</button>
+                    <button class="btn btn-secondary" id="recognitionRandom">Losuj znak</button>
                     <div class="recognition-feedback" id="recognitionFeedback"></div>
                 </div>
             </div>
@@ -575,7 +1298,7 @@
 
         <!-- FOOTER -->
         <footer>
-            <p>Generator Języka Obrazowego — każde słowo ma swój znak. <a href="#" id="footerReset">Zresetuj bazę</a></p>
+            <p>Generator Języka Obrazowego — słowa stają się znakami, a znaki pełnymi zdaniami. <a href="#" id="footerReset">Zresetuj bazę</a></p>
         </footer>
     </div>
 
@@ -1252,9 +1975,16 @@
             }
         }
 
+        function normalizeDictionaryKey(value) {
+            return String(value ?? '')
+                .normalize('NFC')
+                .trim()
+                .toLocaleLowerCase('pl-PL');
+        }
+
         function findWord(db, word) {
-            const normalized = word.trim().toLowerCase();
-            return db.words.find(w => w.word.toLowerCase() === normalized);
+            const normalized = normalizeDictionaryKey(word);
+            return db.words.find(w => normalizeDictionaryKey(w.word) === normalized);
         }
 
         function addWordToDatabase(db, word, glyphData, variantSeed = null, replaceExisting = false) {
@@ -1323,6 +2053,17 @@
         const recognitionRandom = document.getElementById('recognitionRandom');
         const recognitionFeedback = document.getElementById('recognitionFeedback');
         const footerReset = document.getElementById('footerReset');
+        const sentenceInput = document.getElementById('sentenceInput');
+        const sentenceGenerate = document.getElementById('sentenceGenerate');
+        const sentenceRead = document.getElementById('sentenceRead');
+        const sentenceDownload = document.getElementById('sentenceDownload');
+        const sentenceRecognize = document.getElementById('sentenceRecognize');
+        const sentenceImportFile = document.getElementById('sentenceImportFile');
+        const sentenceSummary = document.getElementById('sentenceSummary');
+        const sentenceOutput = document.getElementById('sentenceOutput');
+        const sentenceFeedback = document.getElementById('sentenceFeedback');
+        const installAppBtn = document.getElementById('installAppBtn');
+        const pwaStatus = document.getElementById('pwaStatus');
 
         let db = loadDatabase();
         let currentGlyphStrokes = null;
@@ -1330,6 +2071,8 @@
         let currentGlyphVariantSeed = null;
         let currentGlyphIsDraft = false;
         let recognitionCurrentWord = null;
+        let currentSentenceModel = null;
+        let deferredInstallPrompt = null;
         let variantNonce = 0;
         const recentVariantSignatures = new Map();
         const recentVariantStructures = new Map();
@@ -1432,6 +2175,7 @@
         function updateWordCount() {
             wordCount.textContent = `${db.words.length} słów`;
             downloadAllBtn.disabled = db.words.length === 0;
+            if (currentSentenceModel) refreshCurrentSentenceFromDatabase();
         }
 
         function setStatus(msg, type = 'info') {
@@ -1798,7 +2542,7 @@
             try {
                 for (let i = 0; i < db.words.length; i++) {
                     const entry = db.words[i];
-                    downloadAllBtn.textContent = `⏳ Przygotowywanie ${i + 1}/${db.words.length}`;
+                    downloadAllBtn.textContent = `Przygotowywanie ${i + 1}/${db.words.length}`;
                     setStatus(`Tworzenie PNG ${i + 1} z ${db.words.length}…`, 'info');
 
                     const canvas = createExportCanvas(getEntryGlyph(entry));
@@ -1909,6 +2653,1424 @@
         }
 
         // =====================================================
+        // ==================== SENTENCE MODE ====================
+        // =====================================================
+
+        const SENTENCE_FORMAT = 'JOS-SENTENCE';
+        const SENTENCE_FORMAT_VERSION = 1;
+        const SENTENCE_METADATA_KEY = 'JOSentence';
+        const SENTENCE_MAX_TOKENS = 100;
+        const BINARY_MAP_SIZE = 32;
+        const BINARY_INK_THRESHOLD = 188;
+        const BINARY_SHORTLIST_SIZE = 48;
+        const BINARY_ACCEPT_SCORE = 0.56;
+        const FREEFORM_BINARY_ACCEPT_SCORE = 0.46;
+        const FREEFORM_MAX_DIMENSION = 1800;
+        const BINARY_PUNCTUATION = ['.', ',', '!', '?', ';', ':', '…', '-', '–', '—', '(', ')', '[', ']', '{', '}', '„', '”', '«', '»', '"', "'", '/'];
+        const binaryGlyphCache = new Map();
+        const binaryPunctuationCache = new Map();
+
+        function tokenizeSentenceText(text) {
+            return String(text ?? '').match(/[\p{L}\p{N}]+(?:[’'][\p{L}\p{N}]+)*|[^\s]/gu) || [];
+        }
+
+        function isSentenceWordToken(token) {
+            return /^[\p{L}\p{N}]+(?:[’'][\p{L}\p{N}]+)*$/u.test(token);
+        }
+
+        function glyphFingerprint(strokes) {
+            return hashString(JSON.stringify(strokes || []))
+                .toString(16)
+                .padStart(8, '0');
+        }
+
+        function buildSentenceModel(text) {
+            const rawText = String(text ?? '').trim();
+            const rawTokens = tokenizeSentenceText(rawText);
+            const tokens = rawTokens.map((raw, index) => {
+                if (!isSentenceWordToken(raw)) {
+                    return { type: 'punctuation', raw, index };
+                }
+                const entry = findWord(db, raw);
+                return {
+                    type: 'word',
+                    raw,
+                    key: normalizeDictionaryKey(raw),
+                    index,
+                    entry: entry || null,
+                };
+            });
+            return { rawText, tokens };
+        }
+
+        function getSentenceStats(model) {
+            const wordTokens = model.tokens.filter(token => token.type === 'word');
+            const missingTokens = wordTokens.filter(token => !token.entry);
+            const missingWords = [...new Set(missingTokens.map(token => token.raw))];
+            return {
+                wordCount: wordTokens.length,
+                knownCount: wordTokens.length - missingTokens.length,
+                punctuationCount: model.tokens.length - wordTokens.length,
+                missingWords,
+            };
+        }
+
+        function setSentenceFeedback(message, type = '') {
+            sentenceFeedback.textContent = message;
+            sentenceFeedback.className = `sentence-feedback${type ? ` ${type}` : ''}`;
+        }
+
+        function updateSentenceSummary(model) {
+            const stats = getSentenceStats(model);
+            sentenceSummary.innerHTML = '';
+
+            const addBadge = (text, className = '') => {
+                const badge = document.createElement('span');
+                badge.className = `sentence-badge${className ? ` ${className}` : ''}`;
+                badge.textContent = text;
+                sentenceSummary.appendChild(badge);
+            };
+
+            addBadge(`${stats.wordCount} ${stats.wordCount === 1 ? 'słowo' : 'słów'}`);
+            addBadge(`${stats.knownCount} rozpoznanych`, stats.knownCount === stats.wordCount ? 'ok' : '');
+            if (stats.punctuationCount > 0) {
+                addBadge(`${stats.punctuationCount} znaków interpunkcyjnych`);
+            }
+            if (stats.missingWords.length > 0) {
+                addBadge(`${stats.missingWords.length} brakujących`, 'missing');
+            }
+
+            sentenceRead.disabled = stats.wordCount === 0;
+            sentenceDownload.disabled = stats.wordCount === 0 || stats.missingWords.length > 0;
+            return stats;
+        }
+
+        function paintUnknownSentenceGlyph(canvas) {
+            const ctx = canvas.getContext('2d');
+            paintPaper(ctx, canvas.width, canvas.height);
+            ctx.fillStyle = '#a94f4f';
+            ctx.font = `700 ${Math.round(canvas.width * 0.42)}px Georgia, serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('?', canvas.width / 2, canvas.height / 2);
+        }
+
+        function focusMissingSentenceWord(word) {
+            wordInput.value = word;
+            wordInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            setTimeout(() => {
+                wordInput.focus();
+                wordInput.select();
+            }, 350);
+            setStatus(`Słowo "${word}" nie ma jeszcze zapisanego znaku. Wygeneruj i zapisz wybrany wariant.`, 'warning');
+        }
+
+        function renderSentenceModel(model) {
+            sentenceOutput.innerHTML = '';
+            sentenceOutput.classList.remove('show-labels');
+            let wordPosition = 0;
+
+            if (model.tokens.length === 0) {
+                sentenceOutput.innerHTML = '<div class="sentence-empty">Wpisz zdanie zawierające co najmniej jedno słowo.</div>';
+                return;
+            }
+
+            model.tokens.forEach(token => {
+                if (token.type === 'punctuation') {
+                    const punctuation = document.createElement('span');
+                    punctuation.className = 'sentence-punctuation';
+                    punctuation.textContent = token.raw;
+                    punctuation.setAttribute('aria-label', `Interpunkcja: ${token.raw}`);
+                    sentenceOutput.appendChild(punctuation);
+                    return;
+                }
+
+                wordPosition++;
+                const card = document.createElement('button');
+                card.type = 'button';
+                card.className = `sentence-token${token.entry ? '' : ' unknown'}`;
+                card.title = token.entry
+                    ? 'Kliknij, aby odsłonić znaczenie'
+                    : 'Kliknij, aby przejść do generatora brakującego słowa';
+
+                const canvas = document.createElement('canvas');
+                canvas.width = 156;
+                canvas.height = 156;
+                if (token.entry) {
+                    renderGlyph(canvas, getEntryGlyph(token.entry), false, 0);
+                } else {
+                    paintUnknownSentenceGlyph(canvas);
+                }
+                card.appendChild(canvas);
+
+                const index = document.createElement('span');
+                index.className = 'sentence-token-index';
+                index.textContent = String(wordPosition);
+                card.appendChild(index);
+
+                const label = document.createElement('span');
+                label.className = 'sentence-token-label';
+                label.textContent = token.entry ? token.entry.word : `Brak: ${token.raw}`;
+                card.appendChild(label);
+
+                card.addEventListener('click', () => {
+                    if (!token.entry) {
+                        focusMissingSentenceWord(token.raw);
+                        return;
+                    }
+                    card.classList.toggle('revealed');
+                });
+
+                sentenceOutput.appendChild(card);
+            });
+        }
+
+        function applySentenceText(text) {
+            const model = buildSentenceModel(text);
+            if (model.tokens.length > SENTENCE_MAX_TOKENS) {
+                setSentenceFeedback(
+                    `Zdanie ma ${model.tokens.length} elementów. Maksymalnie można wygenerować ${SENTENCE_MAX_TOKENS}.`,
+                    'warning'
+                );
+                return null;
+            }
+            currentSentenceModel = model;
+            renderSentenceModel(model);
+            const stats = updateSentenceSummary(model);
+            return { model, stats };
+        }
+
+        function generateSentenceFromInput() {
+            const text = sentenceInput.value.trim();
+            if (!text) {
+                setSentenceFeedback('Wpisz zdanie, które chcesz zamienić na znaki.', 'warning');
+                sentenceInput.focus();
+                return;
+            }
+
+            const result = applySentenceText(text);
+            if (!result) return;
+
+            if (result.stats.wordCount === 0) {
+                setSentenceFeedback('Zdanie nie zawiera słów możliwych do zamiany na znaki.', 'warning');
+            } else if (result.stats.missingWords.length > 0) {
+                const preview = result.stats.missingWords.slice(0, 10).join(', ');
+                const suffix = result.stats.missingWords.length > 10 ? '…' : '';
+                setSentenceFeedback(
+                    `Brak znaków dla: ${preview}${suffix}. Kliknij czerwone pole, aby przejść do generatora.`,
+                    'warning'
+                );
+            } else {
+                setSentenceFeedback(
+                    `Zdanie jest kompletne: rozpoznano wszystkie ${result.stats.wordCount} słów.`,
+                    'success'
+                );
+            }
+        }
+
+        function readCurrentSentence() {
+            if (!currentSentenceModel) {
+                setSentenceFeedback('Najpierw wygeneruj zdanie.', 'warning');
+                return;
+            }
+            const stats = getSentenceStats(currentSentenceModel);
+            const showing = sentenceOutput.classList.toggle('show-labels');
+            sentenceRead.textContent = showing ? 'Ukryj znaczenia' : 'Odczytaj';
+
+            if (stats.missingWords.length > 0) {
+                setSentenceFeedback(
+                    `Odczyt niepełny. Brakuje: ${stats.missingWords.join(', ')}.`,
+                    'warning'
+                );
+                return;
+            }
+            setSentenceFeedback(`Odczytane zdanie: ${currentSentenceModel.rawText}`, 'success');
+        }
+
+        function refreshCurrentSentenceFromDatabase() {
+            if (!currentSentenceModel) return;
+            if (sentenceInput.value.trim() !== currentSentenceModel.rawText) return;
+            const result = applySentenceText(currentSentenceModel.rawText);
+            if (!result) return;
+            if (result.stats.missingWords.length === 0) {
+                setSentenceFeedback('Baza została zaktualizowana. Zdanie jest kompletne.', 'success');
+            }
+        }
+
+        function clearSentenceMode() {
+            currentSentenceModel = null;
+            sentenceInput.value = '';
+            sentenceSummary.innerHTML = '';
+            sentenceOutput.classList.remove('show-labels');
+            sentenceOutput.innerHTML = '<div class="sentence-empty">Wygenerowane zdanie pojawi się tutaj.</div>';
+            sentenceRead.disabled = true;
+            sentenceDownload.disabled = true;
+            sentenceRead.textContent = 'Odczytaj';
+            setSentenceFeedback('Do rozpoznawania zbioru symboli użyj jasnego tła i pozostaw widoczne odstępy między znakami.');
+        }
+
+        function createSentenceExportCanvas(model) {
+            const tokens = model.tokens;
+            const columns = Math.min(8, Math.max(1, Math.ceil(Math.sqrt(tokens.length * 1.45))));
+            const tileSize = 118;
+            const gap = 14;
+            const margin = 44;
+            const headerHeight = 82;
+            const footerHeight = 46;
+            const rows = Math.ceil(tokens.length / columns);
+            const width = margin * 2 + columns * tileSize + (columns - 1) * gap;
+            const height = headerHeight + margin + rows * tileSize + (rows - 1) * gap + footerHeight;
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+
+            paintExportPaper(ctx, width, height);
+            ctx.fillStyle = '#18352e';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.font = '700 30px Georgia, serif';
+            ctx.fillText('JĘZYK OBRAZOWY • ZDANIE', width / 2, 36);
+            ctx.font = '16px Georgia, serif';
+            ctx.fillStyle = '#6e6a61';
+            const wordCount = tokens.filter(token => token.type === 'word').length;
+            ctx.fillText(`${wordCount} ${wordCount === 1 ? 'znak' : 'znaków'} • odczyt zapisany w PNG`, width / 2, 65);
+
+            let wordPosition = 0;
+            tokens.forEach((token, index) => {
+                const column = index % columns;
+                const row = Math.floor(index / columns);
+                const x = margin + column * (tileSize + gap);
+                const y = headerHeight + row * (tileSize + gap);
+
+                if (token.type === 'punctuation') {
+                    ctx.fillStyle = '#18352e';
+                    ctx.font = '700 58px Georgia, serif';
+                    ctx.fillText(token.raw, x + tileSize / 2, y + tileSize / 2 - 3);
+                    return;
+                }
+
+                wordPosition++;
+                ctx.fillStyle = '#f4f0e8';
+                ctx.fillRect(x, y, tileSize, tileSize);
+                ctx.strokeStyle = '#d1c9ba';
+                ctx.lineWidth = 1;
+                ctx.strokeRect(x + 0.5, y + 0.5, tileSize - 1, tileSize - 1);
+
+                if (token.entry) {
+                    const glyphCanvas = createExportCanvas(getEntryGlyph(token.entry), 220);
+                    ctx.drawImage(glyphCanvas, x + 7, y + 7, tileSize - 14, tileSize - 14);
+                } else {
+                    ctx.fillStyle = '#a94f4f';
+                    ctx.font = '700 58px Georgia, serif';
+                    ctx.fillText('?', x + tileSize / 2, y + tileSize / 2);
+                }
+
+                ctx.fillStyle = 'rgba(24, 53, 46, 0.62)';
+                ctx.font = '13px Georgia, serif';
+                ctx.fillText(String(wordPosition), x + tileSize - 12, y + tileSize - 12);
+            });
+
+            ctx.fillStyle = '#7c776d';
+            ctx.font = '13px Georgia, serif';
+            ctx.fillText('JOS1 • zachowaj oryginalny plik PNG, aby ponownie go rozpoznać', width / 2, height - 20);
+            return canvas;
+        }
+
+        function concatUint8Arrays(parts) {
+            const length = parts.reduce((sum, part) => sum + part.length, 0);
+            const output = new Uint8Array(length);
+            let offset = 0;
+            parts.forEach(part => {
+                output.set(part, offset);
+                offset += part.length;
+            });
+            return output;
+        }
+
+        function createPngChunk(type, data) {
+            const typeBytes = new TextEncoder().encode(type);
+            const chunk = new Uint8Array(12 + data.length);
+            const view = new DataView(chunk.buffer);
+            view.setUint32(0, data.length, false);
+            chunk.set(typeBytes, 4);
+            chunk.set(data, 8);
+            const crcInput = concatUint8Arrays([typeBytes, data]);
+            view.setUint32(8 + data.length, calculateCrc32(crcInput), false);
+            return chunk;
+        }
+
+        function addPngSentenceMetadata(pngBytes, payload) {
+            const signature = [137, 80, 78, 71, 13, 10, 26, 10];
+            if (pngBytes.length < 20 || !signature.every((value, index) => pngBytes[index] === value)) {
+                throw new Error('Nieprawidłowy plik PNG.');
+            }
+
+            let offset = 8;
+            let iendOffset = -1;
+            while (offset + 12 <= pngBytes.length) {
+                const length = new DataView(
+                    pngBytes.buffer,
+                    pngBytes.byteOffset + offset,
+                    4
+                ).getUint32(0, false);
+                const type = String.fromCharCode(...pngBytes.slice(offset + 4, offset + 8));
+                if (type === 'IEND') {
+                    iendOffset = offset;
+                    break;
+                }
+                offset += 12 + length;
+            }
+            if (iendOffset < 0) throw new Error('Plik PNG nie zawiera zakończenia IEND.');
+
+            const encoder = new TextEncoder();
+            const keyword = encoder.encode(SENTENCE_METADATA_KEY);
+            const json = encoder.encode(JSON.stringify(payload));
+            // iTXt: keyword, flag kompresji, metoda, język, tłumaczone słowo, tekst UTF-8.
+            const data = concatUint8Arrays([
+                keyword,
+                new Uint8Array([0, 0, 0, 0, 0]),
+                json,
+            ]);
+            const metadataChunk = createPngChunk('iTXt', data);
+            return concatUint8Arrays([
+                pngBytes.slice(0, iendOffset),
+                metadataChunk,
+                pngBytes.slice(iendOffset),
+            ]);
+        }
+
+        function buildSentencePayload(model) {
+            return {
+                format: SENTENCE_FORMAT,
+                formatVersion: SENTENCE_FORMAT_VERSION,
+                createdAt: new Date().toISOString(),
+                text: model.rawText,
+                tokens: model.tokens.map(token => {
+                    if (token.type === 'punctuation') {
+                        return { type: 'punctuation', value: token.raw };
+                    }
+                    return {
+                        type: 'word',
+                        value: token.raw,
+                        dictionaryWord: token.entry ? token.entry.word : null,
+                        glyph: token.entry ? glyphFingerprint(getEntryGlyph(token.entry)) : null,
+                    };
+                }),
+            };
+        }
+
+        async function downloadSentencePng() {
+            if (!currentSentenceModel) {
+                setSentenceFeedback('Najpierw wygeneruj zdanie.', 'warning');
+                return;
+            }
+            const stats = getSentenceStats(currentSentenceModel);
+            if (stats.missingWords.length > 0) {
+                setSentenceFeedback('Uzupełnij brakujące znaki przed pobraniem zdania.', 'warning');
+                return;
+            }
+
+            const originalText = sentenceDownload.textContent;
+            sentenceDownload.disabled = true;
+            sentenceDownload.textContent = 'Tworzenie PNG…';
+            try {
+                const canvas = createSentenceExportCanvas(currentSentenceModel);
+                const pngBytes = await canvasToPngBytes(canvas);
+                const taggedBytes = addPngSentenceMetadata(
+                    pngBytes,
+                    buildSentencePayload(currentSentenceModel)
+                );
+                const blob = new Blob([taggedBytes], { type: 'image/png' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `zdanie-${formatLocalDate()}.png`;
+                document.body.appendChild(link);
+                link.click();
+                link.remove();
+                setTimeout(() => URL.revokeObjectURL(url), 1500);
+                setSentenceFeedback(
+                    'Pobrano PNG z osadzonym zapisem. Możesz później użyć przycisku „Rozpoznaj PNG”.',
+                    'success'
+                );
+            } catch (error) {
+                console.error('Błąd eksportu zdania:', error);
+                setSentenceFeedback('Nie udało się przygotować obrazu zdania.', 'warning');
+            } finally {
+                sentenceDownload.textContent = originalText;
+                sentenceDownload.disabled = stats.missingWords.length > 0;
+            }
+        }
+
+        function findZeroByte(bytes, start) {
+            for (let i = start; i < bytes.length; i++) {
+                if (bytes[i] === 0) return i;
+            }
+            return -1;
+        }
+
+        function extractSentencePayloadFromPng(pngBytes) {
+            const signature = [137, 80, 78, 71, 13, 10, 26, 10];
+            if (pngBytes.length < 20 || !signature.every((value, index) => pngBytes[index] === value)) {
+                throw new Error('Wybrany plik nie jest prawidłowym PNG.');
+            }
+
+            const decoder = new TextDecoder();
+            let offset = 8;
+            while (offset + 12 <= pngBytes.length) {
+                const length = new DataView(
+                    pngBytes.buffer,
+                    pngBytes.byteOffset + offset,
+                    4
+                ).getUint32(0, false);
+                const dataStart = offset + 8;
+                const dataEnd = dataStart + length;
+                if (dataEnd + 4 > pngBytes.length) break;
+                const type = String.fromCharCode(...pngBytes.slice(offset + 4, offset + 8));
+
+                if (type === 'iTXt') {
+                    const data = pngBytes.slice(dataStart, dataEnd);
+                    const keywordEnd = findZeroByte(data, 0);
+                    if (keywordEnd > 0) {
+                        const keyword = decoder.decode(data.slice(0, keywordEnd));
+                        let cursor = keywordEnd + 1;
+                        const compressionFlag = data[cursor++];
+                        cursor++; // metoda kompresji
+                        const languageEnd = findZeroByte(data, cursor);
+                        if (languageEnd < 0) throw new Error('Uszkodzone metadane PNG.');
+                        cursor = languageEnd + 1;
+                        const translatedEnd = findZeroByte(data, cursor);
+                        if (translatedEnd < 0) throw new Error('Uszkodzone metadane PNG.');
+                        cursor = translatedEnd + 1;
+
+                        if (keyword === SENTENCE_METADATA_KEY && compressionFlag === 0) {
+                            return JSON.parse(decoder.decode(data.slice(cursor)));
+                        }
+                    }
+                }
+                if (type === 'IEND') break;
+                offset = dataEnd + 4;
+            }
+            return null;
+        }
+
+        function isBinaryInk(data, offset, threshold = BINARY_INK_THRESHOLD) {
+            if (data[offset + 3] < 40) return false;
+            const luminance = data[offset] * 0.2126 + data[offset + 1] * 0.7152 + data[offset + 2] * 0.0722;
+            return luminance < threshold;
+        }
+
+        function getBinaryFeatures(bits) {
+            const cells = 8;
+            const cellSize = BINARY_MAP_SIZE / cells;
+            const features = new Uint8Array(cells * cells);
+            for (let y = 0; y < BINARY_MAP_SIZE; y++) {
+                for (let x = 0; x < BINARY_MAP_SIZE; x++) {
+                    if (!bits[y * BINARY_MAP_SIZE + x]) continue;
+                    const featureX = Math.floor(x / cellSize);
+                    const featureY = Math.floor(y / cellSize);
+                    features[featureY * cells + featureX]++;
+                }
+            }
+            return features;
+        }
+
+        /**
+         * Zamienia fragment obrazu na znormalizowaną maskę 32×32. Najpierw
+         * znajduje obwiednię atramentu, a potem skaluje ją bez zmiany proporcji.
+         */
+        function createBinaryMap(sourceCanvas, sourceX, sourceY, sourceWidth, sourceHeight, maskIndex = false) {
+            const crop = document.createElement('canvas');
+            crop.width = Math.max(1, Math.round(sourceWidth));
+            crop.height = Math.max(1, Math.round(sourceHeight));
+            const cropCtx = crop.getContext('2d', { willReadFrequently: true });
+            cropCtx.fillStyle = '#ffffff';
+            cropCtx.fillRect(0, 0, crop.width, crop.height);
+            cropCtx.drawImage(
+                sourceCanvas,
+                sourceX,
+                sourceY,
+                sourceWidth,
+                sourceHeight,
+                0,
+                0,
+                crop.width,
+                crop.height
+            );
+
+            // Numer porządkowy eksportowanego słowa leży w prawym dolnym rogu
+            // kafelka. Nie może wpływać na rozpoznawanie samego glifu.
+            if (maskIndex) {
+                cropCtx.fillStyle = '#ffffff';
+                cropCtx.fillRect(
+                    Math.floor(crop.width * 0.78),
+                    Math.floor(crop.height * 0.78),
+                    crop.width,
+                    crop.height
+                );
+            }
+
+            const pixels = cropCtx.getImageData(0, 0, crop.width, crop.height).data;
+            let minX = crop.width;
+            let minY = crop.height;
+            let maxX = -1;
+            let maxY = -1;
+            let rawCount = 0;
+
+            for (let y = 0; y < crop.height; y++) {
+                for (let x = 0; x < crop.width; x++) {
+                    const offset = (y * crop.width + x) * 4;
+                    if (!isBinaryInk(pixels, offset)) continue;
+                    rawCount++;
+                    minX = Math.min(minX, x);
+                    minY = Math.min(minY, y);
+                    maxX = Math.max(maxX, x);
+                    maxY = Math.max(maxY, y);
+                }
+            }
+
+            if (rawCount === 0 || maxX < minX || maxY < minY) {
+                const emptyBits = new Uint8Array(BINARY_MAP_SIZE * BINARY_MAP_SIZE);
+                return { bits: emptyBits, count: 0, features: getBinaryFeatures(emptyBits) };
+            }
+
+            const normalized = document.createElement('canvas');
+            normalized.width = BINARY_MAP_SIZE;
+            normalized.height = BINARY_MAP_SIZE;
+            const normalizedCtx = normalized.getContext('2d', { willReadFrequently: true });
+            normalizedCtx.fillStyle = '#ffffff';
+            normalizedCtx.fillRect(0, 0, BINARY_MAP_SIZE, BINARY_MAP_SIZE);
+            normalizedCtx.imageSmoothingEnabled = true;
+
+            const boxWidth = maxX - minX + 1;
+            const boxHeight = maxY - minY + 1;
+            const innerSize = BINARY_MAP_SIZE - 4;
+            const scale = Math.min(innerSize / boxWidth, innerSize / boxHeight);
+            const targetWidth = Math.max(1, boxWidth * scale);
+            const targetHeight = Math.max(1, boxHeight * scale);
+            const targetX = (BINARY_MAP_SIZE - targetWidth) / 2;
+            const targetY = (BINARY_MAP_SIZE - targetHeight) / 2;
+            normalizedCtx.drawImage(
+                crop,
+                minX,
+                minY,
+                boxWidth,
+                boxHeight,
+                targetX,
+                targetY,
+                targetWidth,
+                targetHeight
+            );
+
+            const normalizedPixels = normalizedCtx.getImageData(
+                0,
+                0,
+                BINARY_MAP_SIZE,
+                BINARY_MAP_SIZE
+            ).data;
+            const bits = new Uint8Array(BINARY_MAP_SIZE * BINARY_MAP_SIZE);
+            let count = 0;
+            for (let index = 0; index < bits.length; index++) {
+                if (isBinaryInk(normalizedPixels, index * 4, BINARY_INK_THRESHOLD + 16)) {
+                    bits[index] = 1;
+                    count++;
+                }
+            }
+            return { bits, count, features: getBinaryFeatures(bits) };
+        }
+
+        function binaryFeatureDistance(left, right) {
+            let distance = Math.abs(left.count - right.count) * 1.5;
+            for (let i = 0; i < left.features.length; i++) {
+                distance += Math.abs(left.features[i] - right.features[i]);
+            }
+            return distance;
+        }
+
+        function shiftedBinaryScore(left, right, shiftX, shiftY) {
+            if (left.count === 0 || right.count === 0) return 0;
+            let intersection = 0;
+            for (let y = 0; y < BINARY_MAP_SIZE; y++) {
+                const rightY = y + shiftY;
+                if (rightY < 0 || rightY >= BINARY_MAP_SIZE) continue;
+                for (let x = 0; x < BINARY_MAP_SIZE; x++) {
+                    if (!left.bits[y * BINARY_MAP_SIZE + x]) continue;
+                    const rightX = x + shiftX;
+                    if (rightX < 0 || rightX >= BINARY_MAP_SIZE) continue;
+                    if (right.bits[rightY * BINARY_MAP_SIZE + rightX]) intersection++;
+                }
+            }
+            return (2 * intersection) / (left.count + right.count);
+        }
+
+        function binaryMapScore(left, right) {
+            let best = 0;
+            for (let shiftY = -1; shiftY <= 1; shiftY++) {
+                for (let shiftX = -1; shiftX <= 1; shiftX++) {
+                    best = Math.max(best, shiftedBinaryScore(left, right, shiftX, shiftY));
+                }
+            }
+            return best;
+        }
+
+        function createBinaryGlyphTemplate(entry) {
+            const strokes = getEntryGlyph(entry);
+            const fingerprint = glyphFingerprint(strokes);
+            let map = binaryGlyphCache.get(fingerprint);
+            if (!map) {
+                const canvas = createExportCanvas(strokes, 128);
+                map = createBinaryMap(canvas, 0, 0, canvas.width, canvas.height, false);
+                binaryGlyphCache.set(fingerprint, map);
+            }
+            return { entry, fingerprint, map };
+        }
+
+        async function buildBinaryDictionary(onProgress) {
+            const templates = [];
+            for (let index = 0; index < db.words.length; index++) {
+                templates.push(createBinaryGlyphTemplate(db.words[index]));
+                if ((index + 1) % 160 === 0) {
+                    if (onProgress) onProgress(index + 1, db.words.length);
+                    await new Promise(resolve => setTimeout(resolve, 0));
+                }
+            }
+            if (onProgress) onProgress(db.words.length, db.words.length);
+            return templates;
+        }
+
+        function getBinaryPunctuationTemplates() {
+            if (binaryPunctuationCache.size > 0) return [...binaryPunctuationCache.values()];
+            BINARY_PUNCTUATION.forEach(value => {
+                const canvas = document.createElement('canvas');
+                canvas.width = 118;
+                canvas.height = 118;
+                const ctx = canvas.getContext('2d');
+                paintExportPaper(ctx, canvas.width, canvas.height);
+                ctx.fillStyle = '#18352e';
+                ctx.font = '700 58px Georgia, serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(value, canvas.width / 2, canvas.height / 2 - 3);
+                binaryPunctuationCache.set(value, {
+                    value,
+                    map: createBinaryMap(canvas, 0, 0, canvas.width, canvas.height, false),
+                });
+            });
+            return [...binaryPunctuationCache.values()];
+        }
+
+        function keepBinaryCandidate(shortlist, candidate, distance) {
+            const item = { candidate, distance };
+            const position = shortlist.findIndex(existing => distance < existing.distance);
+            if (position < 0) {
+                if (shortlist.length < BINARY_SHORTLIST_SIZE) shortlist.push(item);
+            } else {
+                shortlist.splice(position, 0, item);
+                if (shortlist.length > BINARY_SHORTLIST_SIZE) shortlist.pop();
+            }
+        }
+
+        function matchBinaryGlyph(map, dictionary) {
+            const shortlist = [];
+            dictionary.forEach(candidate => {
+                keepBinaryCandidate(shortlist, candidate, binaryFeatureDistance(map, candidate.map));
+            });
+
+            let best = null;
+            let secondScore = 0;
+            shortlist.forEach(({ candidate }) => {
+                const score = binaryMapScore(map, candidate.map);
+                if (!best || score > best.score) {
+                    if (best) secondScore = best.score;
+                    best = { ...candidate, score };
+                } else if (score > secondScore) {
+                    secondScore = score;
+                }
+            });
+            if (!best) return null;
+            return { ...best, secondScore, margin: best.score - secondScore };
+        }
+
+        function matchBinaryPunctuation(map, templates) {
+            let best = null;
+            templates.forEach(template => {
+                const score = binaryMapScore(map, template.map);
+                if (!best || score > best.score) best = { ...template, score };
+            });
+            return best;
+        }
+
+        function detectSentenceImageLayout(canvas) {
+            let best = null;
+            for (let columns = 1; columns <= 8; columns++) {
+                const baseWidth = 74 + 132 * columns;
+                const maxRows = Math.ceil(SENTENCE_MAX_TOKENS / columns);
+                for (let rows = 1; rows <= maxRows; rows++) {
+                    const baseHeight = 158 + 132 * rows;
+                    const scaleX = canvas.width / baseWidth;
+                    const scaleY = canvas.height / baseHeight;
+                    const averageScale = (scaleX + scaleY) / 2;
+                    const error = Math.abs(scaleX - scaleY) / averageScale;
+                    if (!best || error < best.error || (
+                        Math.abs(error - best.error) < 0.000001 &&
+                        Math.abs(averageScale - 1) < Math.abs(best.scale - 1)
+                    )) {
+                        best = { columns, rows, scaleX, scaleY, scale: averageScale, error };
+                    }
+                }
+            }
+            if (!best || best.error > 0.018 || best.scale < 0.28) return null;
+            return best;
+        }
+
+        function getSentenceTileFrameStrength(canvas, x, y, width, height) {
+            const probe = document.createElement('canvas');
+            probe.width = 64;
+            probe.height = 64;
+            const ctx = probe.getContext('2d', { willReadFrequently: true });
+            ctx.drawImage(canvas, x, y, width, height, 0, 0, probe.width, probe.height);
+            const pixels = ctx.getImageData(0, 0, probe.width, probe.height).data;
+            const luminanceAt = (px, py) => {
+                const offset = (py * probe.width + px) * 4;
+                return pixels[offset] * 0.2126 + pixels[offset + 1] * 0.7152 + pixels[offset + 2] * 0.0722;
+            };
+
+            let edgeTotal = 0;
+            let edgeCount = 0;
+            for (let index = 4; index < 60; index++) {
+                edgeTotal += Math.min(luminanceAt(index, 0), luminanceAt(index, 1));
+                edgeTotal += Math.min(luminanceAt(index, 62), luminanceAt(index, 63));
+                edgeTotal += Math.min(luminanceAt(0, index), luminanceAt(1, index));
+                edgeTotal += Math.min(luminanceAt(62, index), luminanceAt(63, index));
+                edgeCount += 4;
+            }
+            const innerPoints = [[2, 2], [61, 2], [2, 61], [61, 61]];
+            const innerAverage = innerPoints.reduce(
+                (sum, point) => sum + luminanceAt(point[0], point[1]),
+                0
+            ) / innerPoints.length;
+            return innerAverage - edgeTotal / edgeCount;
+        }
+
+        function compositeLuminance(data, offset) {
+            const alpha = data[offset + 3] / 255;
+            const source = data[offset] * 0.2126 + data[offset + 1] * 0.7152 + data[offset + 2] * 0.0722;
+            return source * alpha + 255 * (1 - alpha);
+        }
+
+        function medianNumber(values) {
+            if (values.length === 0) return 255;
+            const sorted = values.slice().sort((left, right) => left - right);
+            const middle = Math.floor(sorted.length / 2);
+            return sorted.length % 2 === 0
+                ? (sorted[middle - 1] + sorted[middle]) / 2
+                : sorted[middle];
+        }
+
+        /** Tworzy czarno-białą wersję dowolnego obrazu ze zbiorem symboli. */
+        function createFreeformInkMask(sourceCanvas) {
+            const reduction = Math.min(
+                1,
+                FREEFORM_MAX_DIMENSION / Math.max(sourceCanvas.width, sourceCanvas.height)
+            );
+            const canvas = document.createElement('canvas');
+            canvas.width = Math.max(1, Math.round(sourceCanvas.width * reduction));
+            canvas.height = Math.max(1, Math.round(sourceCanvas.height * reduction));
+            const ctx = canvas.getContext('2d', { willReadFrequently: true });
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(sourceCanvas, 0, 0, canvas.width, canvas.height);
+
+            const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const data = image.data;
+            const borderSamples = [];
+            const borderStep = Math.max(1, Math.floor(Math.max(canvas.width, canvas.height) / 500));
+            for (let x = 0; x < canvas.width; x += borderStep) {
+                borderSamples.push(compositeLuminance(data, x * 4));
+                borderSamples.push(compositeLuminance(data, ((canvas.height - 1) * canvas.width + x) * 4));
+            }
+            for (let y = 0; y < canvas.height; y += borderStep) {
+                borderSamples.push(compositeLuminance(data, (y * canvas.width) * 4));
+                borderSamples.push(compositeLuminance(data, (y * canvas.width + canvas.width - 1) * 4));
+            }
+
+            const background = medianNumber(borderSamples);
+            const darkInk = background >= 128;
+            let extreme = darkInk ? 255 : 0;
+            const sampleStep = Math.max(1, Math.floor(Math.sqrt((canvas.width * canvas.height) / 60000)));
+            for (let y = 0; y < canvas.height; y += sampleStep) {
+                for (let x = 0; x < canvas.width; x += sampleStep) {
+                    const luminance = compositeLuminance(data, (y * canvas.width + x) * 4);
+                    extreme = darkInk ? Math.min(extreme, luminance) : Math.max(extreme, luminance);
+                }
+            }
+
+            const availableContrast = Math.abs(background - extreme);
+            if (availableContrast < 28) {
+                throw new Error('Obraz ma zbyt mały kontrast między tłem a symbolami.');
+            }
+            const contrastGap = Math.max(24, Math.min(48, availableContrast * 0.18));
+            const threshold = darkInk ? background - contrastGap : background + contrastGap;
+            const rawMask = new Uint8Array(canvas.width * canvas.height);
+
+            for (let index = 0; index < rawMask.length; index++) {
+                const luminance = compositeLuminance(data, index * 4);
+                rawMask[index] = darkInk
+                    ? (luminance < threshold ? 1 : 0)
+                    : (luminance > threshold ? 1 : 0);
+            }
+
+            // Usuń pojedyncze piksele szumu, zachowując cienkie linie i kropki.
+            const mask = new Uint8Array(rawMask.length);
+            let inkCount = 0;
+            for (let y = 0; y < canvas.height; y++) {
+                for (let x = 0; x < canvas.width; x++) {
+                    const index = y * canvas.width + x;
+                    if (!rawMask[index]) continue;
+                    let neighbours = 0;
+                    for (let offsetY = -1; offsetY <= 1; offsetY++) {
+                        const neighbourY = y + offsetY;
+                        if (neighbourY < 0 || neighbourY >= canvas.height) continue;
+                        for (let offsetX = -1; offsetX <= 1; offsetX++) {
+                            if (offsetX === 0 && offsetY === 0) continue;
+                            const neighbourX = x + offsetX;
+                            if (neighbourX < 0 || neighbourX >= canvas.width) continue;
+                            neighbours += rawMask[neighbourY * canvas.width + neighbourX];
+                        }
+                    }
+                    if (neighbours >= 1) {
+                        mask[index] = 1;
+                        inkCount++;
+                    }
+                }
+            }
+
+            if (inkCount < 5) throw new Error('Na obrazie nie znaleziono czytelnych linii symboli.');
+
+            const maskCanvas = document.createElement('canvas');
+            maskCanvas.width = canvas.width;
+            maskCanvas.height = canvas.height;
+            const maskCtx = maskCanvas.getContext('2d');
+            const maskImage = maskCtx.createImageData(canvas.width, canvas.height);
+            for (let index = 0; index < mask.length; index++) {
+                const value = mask[index] ? 0 : 255;
+                const offset = index * 4;
+                maskImage.data[offset] = value;
+                maskImage.data[offset + 1] = value;
+                maskImage.data[offset + 2] = value;
+                maskImage.data[offset + 3] = 255;
+            }
+            maskCtx.putImageData(maskImage, 0, 0);
+            return {
+                canvas,
+                maskCanvas,
+                mask,
+                width: canvas.width,
+                height: canvas.height,
+                reduction,
+                background,
+                darkInk,
+                inkCount,
+            };
+        }
+
+        function findProjectionBands(projection, bridgeGap = 1) {
+            const bands = [];
+            let start = -1;
+            let lastInk = -1;
+            for (let index = 0; index < projection.length; index++) {
+                if (projection[index] <= 0) continue;
+                if (start < 0) {
+                    start = index;
+                } else if (index - lastInk - 1 > bridgeGap) {
+                    bands.push({ start, end: lastInk });
+                    start = index;
+                }
+                lastInk = index;
+            }
+            if (start >= 0) bands.push({ start, end: lastInk });
+            return bands;
+        }
+
+        function mergeProjectionBands(bands, gapResolver) {
+            const merged = [];
+            bands.forEach(band => {
+                const previous = merged[merged.length - 1];
+                if (!previous) {
+                    merged.push({ ...band });
+                    return;
+                }
+                const gap = band.start - previous.end - 1;
+                if (gap <= gapResolver(previous, band)) {
+                    previous.end = band.end;
+                } else {
+                    merged.push({ ...band });
+                }
+            });
+            return merged;
+        }
+
+        function countMaskInk(maskData, x1, y1, x2, y2) {
+            let count = 0;
+            for (let y = y1; y <= y2; y++) {
+                const rowOffset = y * maskData.width;
+                for (let x = x1; x <= x2; x++) count += maskData.mask[rowOffset + x];
+            }
+            return count;
+        }
+
+        /**
+         * Segmentuje zwykły obraz na symbole. Najpierw wykrywa wiersze,
+         * następnie łączy blisko położone kreski, pierścienie i kropki w glify.
+         */
+        function segmentFreeformSymbols(maskData) {
+            const rowProjection = new Uint32Array(maskData.height);
+            for (let y = 0; y < maskData.height; y++) {
+                const rowOffset = y * maskData.width;
+                for (let x = 0; x < maskData.width; x++) {
+                    rowProjection[y] += maskData.mask[rowOffset + x];
+                }
+            }
+
+            const rawRows = findProjectionBands(
+                rowProjection,
+                Math.max(1, Math.round(maskData.height * 0.002))
+            );
+            const rows = mergeProjectionBands(rawRows, (left, right) => {
+                const leftHeight = left.end - left.start + 1;
+                const rightHeight = right.end - right.start + 1;
+                return Math.max(3, Math.round(Math.max(leftHeight, rightHeight) * 0.28));
+            }).filter(row => countMaskInk(maskData, 0, row.start, maskData.width - 1, row.end) >= 4);
+
+            const segments = [];
+            rows.forEach((row, rowIndex) => {
+                const rowHeight = row.end - row.start + 1;
+                const columnProjection = new Uint32Array(maskData.width);
+                for (let x = 0; x < maskData.width; x++) {
+                    for (let y = row.start; y <= row.end; y++) {
+                        columnProjection[x] += maskData.mask[y * maskData.width + x];
+                    }
+                }
+
+                const rawColumns = findProjectionBands(
+                    columnProjection,
+                    Math.max(1, Math.round(rowHeight * 0.018))
+                );
+                const columns = mergeProjectionBands(
+                    rawColumns,
+                    () => Math.max(3, Math.round(rowHeight * 0.22))
+                );
+
+                columns.forEach(column => {
+                    let minY = row.end;
+                    let maxY = row.start;
+                    let hasInk = false;
+                    for (let y = row.start; y <= row.end; y++) {
+                        for (let x = column.start; x <= column.end; x++) {
+                            if (!maskData.mask[y * maskData.width + x]) continue;
+                            hasInk = true;
+                            minY = Math.min(minY, y);
+                            maxY = Math.max(maxY, y);
+                        }
+                    }
+                    if (!hasInk) return;
+                    const inkCount = countMaskInk(maskData, column.start, minY, column.end, maxY);
+                    if (inkCount < 3) return;
+                    segments.push({
+                        x: column.start,
+                        y: minY,
+                        width: column.end - column.start + 1,
+                        height: maxY - minY + 1,
+                        rowIndex,
+                        lineBreakBefore: rowIndex > 0 && !segments.some(segment => segment.rowIndex === rowIndex),
+                        inkCount,
+                    });
+                });
+            });
+
+            if (segments.length > SENTENCE_MAX_TOKENS) {
+                throw new Error(`Wykryto ${segments.length} symboli. Maksymalnie można odczytać ${SENTENCE_MAX_TOKENS}.`);
+            }
+            if (segments.length === 0) {
+                throw new Error('Nie udało się oddzielić symboli. Zwiększ odstępy między znakami.');
+            }
+            return { rows, segments };
+        }
+
+        function hasStructuredSentenceFrames(canvas, layout) {
+            let nonEmpty = 0;
+            let framed = 0;
+            for (let slot = 0; slot < layout.columns * layout.rows; slot++) {
+                const column = slot % layout.columns;
+                const row = Math.floor(slot / layout.columns);
+                const x = (44 + column * 132) * layout.scaleX;
+                const y = (82 + row * 132) * layout.scaleY;
+                const width = 118 * layout.scaleX;
+                const height = 118 * layout.scaleY;
+                const map = createBinaryMap(canvas, x, y, width, height, true);
+                if (map.count < 5) continue;
+                nonEmpty++;
+                if (getSentenceTileFrameStrength(canvas, x, y, width, height) >= 8) framed++;
+            }
+            return framed > 0 && framed / Math.max(1, nonEmpty) >= 0.30;
+        }
+
+        async function imageFileToCanvas(file) {
+            const canvas = document.createElement('canvas');
+            if (typeof createImageBitmap === 'function') {
+                const bitmap = await createImageBitmap(file);
+                canvas.width = bitmap.width;
+                canvas.height = bitmap.height;
+                canvas.getContext('2d').drawImage(bitmap, 0, 0);
+                if (typeof bitmap.close === 'function') bitmap.close();
+                return canvas;
+            }
+
+            const objectUrl = URL.createObjectURL(file);
+            try {
+                const image = new Image();
+                image.src = objectUrl;
+                await new Promise((resolve, reject) => {
+                    image.onload = resolve;
+                    image.onerror = () => reject(new Error('Nie można wczytać obrazu.'));
+                });
+                canvas.width = image.naturalWidth;
+                canvas.height = image.naturalHeight;
+                canvas.getContext('2d').drawImage(image, 0, 0);
+                return canvas;
+            } finally {
+                URL.revokeObjectURL(objectUrl);
+            }
+        }
+
+        function binaryConfidence(match) {
+            if (!match) return 'unknown';
+            if (match.score >= 0.86 && match.margin >= 0.035) return 'high';
+            if (match.score >= 0.70 && match.margin >= 0.018) return 'medium';
+            return 'low';
+        }
+
+        async function recognizeFreeformSentenceByBinaryMap(canvas) {
+            if (db.words.length === 0) {
+                throw new Error('Baza słów jest pusta — silnik nie ma wzorców do porównania.');
+            }
+
+            setSentenceFeedback('Wykrywam wiersze i granice symboli…');
+            const maskData = createFreeformInkMask(canvas);
+            const segmentation = segmentFreeformSymbols(maskData);
+            const dictionary = await buildBinaryDictionary((done, total) => {
+                if (total > 320 && done < total) {
+                    setSentenceFeedback(`Buduję mapy binarne bazy: ${done}/${total}…`);
+                }
+            });
+            const punctuationTemplates = getBinaryPunctuationTemplates();
+            const detected = [];
+            let unknownNumber = 0;
+
+            segmentation.segments.forEach(segment => {
+                const map = createBinaryMap(
+                    maskData.maskCanvas,
+                    segment.x,
+                    segment.y,
+                    segment.width,
+                    segment.height,
+                    false
+                );
+                const glyphMatch = matchBinaryGlyph(map, dictionary);
+                const punctuationMatch = matchBinaryPunctuation(map, punctuationTemplates);
+                const isPunctuation = punctuationMatch &&
+                    punctuationMatch.score >= 0.82 &&
+                    (!glyphMatch || punctuationMatch.score >= glyphMatch.score + 0.06);
+
+                if (isPunctuation) {
+                    detected.push({
+                        type: 'punctuation',
+                        value: punctuationMatch.value,
+                        score: punctuationMatch.score,
+                        lineBreakBefore: segment.lineBreakBefore,
+                        sourceBox: segment,
+                    });
+                    return;
+                }
+
+                if (!glyphMatch || glyphMatch.score < FREEFORM_BINARY_ACCEPT_SCORE) {
+                    unknownNumber++;
+                    detected.push({
+                        type: 'word',
+                        value: `nierozpoznany${unknownNumber}`,
+                        entry: null,
+                        score: glyphMatch ? glyphMatch.score : 0,
+                        margin: glyphMatch ? glyphMatch.margin : 0,
+                        confidence: 'unknown',
+                        lineBreakBefore: segment.lineBreakBefore,
+                        sourceBox: segment,
+                    });
+                    return;
+                }
+
+                detected.push({
+                    type: 'word',
+                    value: glyphMatch.entry.word,
+                    entry: glyphMatch.entry,
+                    score: glyphMatch.score,
+                    margin: glyphMatch.margin,
+                    confidence: binaryConfidence(glyphMatch),
+                    lineBreakBefore: segment.lineBreakBefore,
+                    sourceBox: segment,
+                });
+            });
+
+            const words = detected.filter(token => token.type === 'word');
+            const recognizedWords = words.filter(token => token.entry);
+            const averageScore = recognizedWords.length > 0
+                ? recognizedWords.reduce((sum, token) => sum + token.score, 0) / recognizedWords.length
+                : 0;
+            const uncertainCount = words.filter(token => token.confidence === 'low' || token.confidence === 'unknown').length;
+            return {
+                detected,
+                layout: {
+                    mode: 'freeform',
+                    rowCount: segmentation.rows.length,
+                    symbolCount: segmentation.segments.length,
+                    sourceScale: maskData.reduction,
+                },
+                averageScore,
+                uncertainCount,
+                recognizedCount: recognizedWords.length,
+            };
+        }
+
+        async function recognizeStructuredSentenceByBinaryMap(canvas, layout) {
+            if (db.words.length === 0) {
+                throw new Error('Baza słów jest pusta — silnik nie ma wzorców do porównania.');
+            }
+
+            const dictionary = await buildBinaryDictionary((done, total) => {
+                if (total > 320 && done < total) {
+                    setSentenceFeedback(`Buduję mapy binarne bazy: ${done}/${total}…`);
+                }
+            });
+            const punctuationTemplates = getBinaryPunctuationTemplates();
+            const detected = [];
+            let unknownNumber = 0;
+
+            for (let slot = 0; slot < layout.columns * layout.rows; slot++) {
+                const column = slot % layout.columns;
+                const row = Math.floor(slot / layout.columns);
+                const x = (44 + column * 132) * layout.scaleX;
+                const y = (82 + row * 132) * layout.scaleY;
+                const width = 118 * layout.scaleX;
+                const height = 118 * layout.scaleY;
+                const map = createBinaryMap(canvas, x, y, width, height, true);
+                const frameStrength = getSentenceTileFrameStrength(canvas, x, y, width, height);
+
+                // Puste pola w ostatnim wierszu nie zawierają atramentu.
+                if (map.count < 5) continue;
+
+                const glyphMatch = matchBinaryGlyph(map, dictionary);
+                const punctuationMatch = matchBinaryPunctuation(map, punctuationTemplates);
+                const isPunctuation = frameStrength < 8 && punctuationMatch &&
+                    punctuationMatch.score >= 0.80 &&
+                    (!glyphMatch || punctuationMatch.score >= glyphMatch.score + 0.055);
+
+                if (isPunctuation) {
+                    detected.push({
+                        type: 'punctuation',
+                        value: punctuationMatch.value,
+                        score: punctuationMatch.score,
+                    });
+                    continue;
+                }
+
+                if (!glyphMatch || glyphMatch.score < BINARY_ACCEPT_SCORE) {
+                    unknownNumber++;
+                    detected.push({
+                        type: 'word',
+                        value: `nierozpoznany${unknownNumber}`,
+                        entry: null,
+                        score: glyphMatch ? glyphMatch.score : 0,
+                        margin: glyphMatch ? glyphMatch.margin : 0,
+                        confidence: 'unknown',
+                    });
+                    continue;
+                }
+
+                detected.push({
+                    type: 'word',
+                    value: glyphMatch.entry.word,
+                    entry: glyphMatch.entry,
+                    score: glyphMatch.score,
+                    margin: glyphMatch.margin,
+                    confidence: binaryConfidence(glyphMatch),
+                });
+            }
+
+            if (detected.length === 0) {
+                throw new Error('Na obrazie nie znaleziono żadnych znaków.');
+            }
+
+            const words = detected.filter(token => token.type === 'word');
+            const recognizedWords = words.filter(token => token.entry);
+            const averageScore = recognizedWords.length > 0
+                ? recognizedWords.reduce((sum, token) => sum + token.score, 0) / recognizedWords.length
+                : 0;
+            const uncertainCount = words.filter(token => token.confidence === 'low' || token.confidence === 'unknown').length;
+            return {
+                detected,
+                layout: { ...layout, mode: 'structured' },
+                averageScore,
+                uncertainCount,
+                recognizedCount: recognizedWords.length,
+            };
+        }
+
+        async function recognizeSentenceByBinaryMap(canvas) {
+            if (db.words.length === 0) {
+                throw new Error('Baza słów jest pusta — silnik nie ma wzorców do porównania.');
+            }
+            const structuredLayout = detectSentenceImageLayout(canvas);
+            if (structuredLayout && hasStructuredSentenceFrames(canvas, structuredLayout)) {
+                return recognizeStructuredSentenceByBinaryMap(canvas, structuredLayout);
+            }
+            return recognizeFreeformSentenceByBinaryMap(canvas);
+        }
+
+        function binaryTokensToText(tokens) {
+            const closing = new Set(['.', ',', '!', '?', ';', ':', '…', ')', ']', '}', '”', '»']);
+            const opening = new Set(['(', '[', '{', '„', '«']);
+            const joining = new Set(['-', '–', '/']);
+            let text = '';
+            let previous = '';
+
+            tokens.forEach(token => {
+                const value = token.value;
+                if (!text) {
+                    text = value;
+                } else if (closing.has(value) || joining.has(value) || opening.has(previous) || joining.has(previous)) {
+                    text += value;
+                } else {
+                    text += ` ${value}`;
+                }
+                previous = value;
+            });
+            return text;
+        }
+
+        function compareVisualRecognitionWithPayload(visual, payload) {
+            const visualWords = visual.detected.filter(token => token.type === 'word');
+            const payloadWords = Array.isArray(payload.tokens)
+                ? payload.tokens.filter(token => token.type === 'word')
+                : [];
+            let confirmed = 0;
+            payloadWords.forEach((token, index) => {
+                const visualToken = visualWords[index];
+                const expected = token.dictionaryWord || token.value;
+                if (visualToken && visualToken.entry &&
+                    normalizeDictionaryKey(visualToken.entry.word) === normalizeDictionaryKey(expected)) {
+                    confirmed++;
+                }
+            });
+            return { confirmed, total: payloadWords.length };
+        }
+
+        async function recognizeSentencePng(file) {
+            if (!file) return;
+            if (file.size > 25 * 1024 * 1024) {
+                setSentenceFeedback('Plik jest zbyt duży. Maksymalny rozmiar to 25 MB.', 'warning');
+                return;
+            }
+
+            sentenceRecognize.disabled = true;
+            const originalText = sentenceRecognize.textContent;
+            sentenceRecognize.textContent = 'Odczytywanie…';
+            try {
+                const bytes = new Uint8Array(await file.arrayBuffer());
+                const pngSignature = [137, 80, 78, 71, 13, 10, 26, 10];
+                const isPng = bytes.length >= 8 && pngSignature.every((value, index) => bytes[index] === value);
+                const payload = isPng ? extractSentencePayloadFromPng(bytes) : null;
+                const hasPayload = payload && payload.format === SENTENCE_FORMAT && typeof payload.text === 'string';
+                let visual = null;
+                let visualError = null;
+
+                try {
+                    const imageCanvas = await imageFileToCanvas(file);
+                    visual = await recognizeSentenceByBinaryMap(imageCanvas);
+                } catch (error) {
+                    visualError = error;
+                    console.warn('Silnik map binarnych nie potwierdził obrazu:', error);
+                }
+
+                if (hasPayload) {
+                    sentenceInput.value = payload.text;
+                    const result = applySentenceText(payload.text);
+                    if (!result) return;
+
+                    const savedWords = Array.isArray(payload.tokens)
+                        ? payload.tokens.filter(token => token.type === 'word')
+                        : [];
+                    const currentWords = result.model.tokens.filter(token => token.type === 'word');
+                    let changedGlyphs = 0;
+                    savedWords.forEach((savedToken, index) => {
+                        const currentToken = currentWords[index];
+                        if (!currentToken || !currentToken.entry || !savedToken.glyph) return;
+                        if (glyphFingerprint(getEntryGlyph(currentToken.entry)) !== savedToken.glyph) {
+                            changedGlyphs++;
+                        }
+                    });
+
+                    sentenceOutput.classList.add('show-labels');
+                    sentenceRead.textContent = 'Ukryj znaczenia';
+                    const notes = [];
+                    let type = 'success';
+                    if (visual) {
+                        const comparison = compareVisualRecognitionWithPayload(visual, payload);
+                        notes.push(`Mapa binarna potwierdziła ${comparison.confirmed}/${comparison.total} słów (zgodność ${Math.round(visual.averageScore * 100)}%).`);
+                        if (comparison.confirmed !== comparison.total || visual.uncertainCount > 0) type = 'warning';
+                    } else if (visualError) {
+                        notes.push(`Odczyt metadanych jest poprawny; weryfikacja obrazu: ${visualError.message}`);
+                    }
+                    if (result.stats.missingWords.length > 0) {
+                        notes.push(`Brakuje ${result.stats.missingWords.length} znaków w obecnej bazie.`);
+                        type = 'warning';
+                    }
+                    if (changedGlyphs > 0) {
+                        notes.push(`${changedGlyphs} znaków zmieniono w bazie od czasu eksportu.`);
+                        type = 'warning';
+                    }
+                    setSentenceFeedback(`Rozpoznano zdanie: ${payload.text} ${notes.join(' ')}`, type);
+                    return;
+                }
+
+                if (!visual) {
+                    throw visualError || new Error('Nie udało się rozpoznać obrazu.');
+                }
+
+                const recognizedText = binaryTokensToText(visual.detected);
+                sentenceInput.value = recognizedText;
+                const result = applySentenceText(recognizedText);
+                if (!result) return;
+                sentenceOutput.classList.add('show-labels');
+                sentenceRead.textContent = 'Ukryj znaczenia';
+
+                const confidence = Math.round(visual.averageScore * 100);
+                const detectionInfo = visual.layout.mode === 'freeform'
+                    ? `Wykryto ${visual.layout.symbolCount} symboli w ${visual.layout.rowCount} ${visual.layout.rowCount === 1 ? 'wierszu' : 'wierszach'}.`
+                    : 'Rozpoznano układ eksportowy.';
+                const message = visual.uncertainCount > 0
+                    ? `${detectionInfo} Odczyt: ${recognizedText} Średnia zgodność ${confidence}%; ${visual.uncertainCount} wyników wymaga sprawdzenia.`
+                    : `${detectionInfo} Odczyt: ${recognizedText} Wszystkie słowa dopasowano do bazy ze średnią zgodnością ${confidence}%.`;
+                setSentenceFeedback(message, visual.uncertainCount > 0 ? 'warning' : 'success');
+            } catch (error) {
+                console.error('Błąd rozpoznawania PNG:', error);
+                setSentenceFeedback(`Nie udało się odczytać obrazu: ${error.message}`, 'warning');
+            } finally {
+                sentenceRecognize.disabled = false;
+                sentenceRecognize.textContent = originalText;
+            }
+        }
+
+        // =====================================================
         // ==================== RECOGNITION MODE ====================
         // =====================================================
 
@@ -1965,6 +4127,61 @@
         // ==================== EVENT HANDLERS ====================
         // =====================================================
 
+        function setPwaStatus(label, offline = false) {
+            if (!pwaStatus) return;
+            pwaStatus.classList.toggle('offline', offline);
+            pwaStatus.innerHTML = `<span></span> ${label}`;
+        }
+
+        function setupPwa() {
+            if (typeof window === 'undefined' || typeof navigator === 'undefined') return;
+
+            const standalone = (
+                typeof window.matchMedia === 'function' &&
+                window.matchMedia('(display-mode: standalone)').matches
+            ) || navigator.standalone === true;
+            setPwaStatus(standalone ? 'APLIKACJA ZAINSTALOWANA' : (navigator.onLine ? 'SYSTEM ONLINE' : 'TRYB OFFLINE'), !navigator.onLine);
+
+            if (typeof window.addEventListener === 'function') {
+                window.addEventListener('online', () => setPwaStatus(standalone ? 'APLIKACJA ZAINSTALOWANA' : 'SYSTEM ONLINE'));
+                window.addEventListener('offline', () => setPwaStatus('TRYB OFFLINE', true));
+                window.addEventListener('beforeinstallprompt', event => {
+                    event.preventDefault();
+                    deferredInstallPrompt = event;
+                    installAppBtn.hidden = false;
+                });
+                window.addEventListener('appinstalled', () => {
+                    deferredInstallPrompt = null;
+                    installAppBtn.hidden = true;
+                    setPwaStatus('APLIKACJA ZAINSTALOWANA');
+                });
+            }
+
+            installAppBtn.addEventListener('click', async () => {
+                if (!deferredInstallPrompt) return;
+                installAppBtn.disabled = true;
+                try {
+                    await deferredInstallPrompt.prompt();
+                    await deferredInstallPrompt.userChoice;
+                } finally {
+                    deferredInstallPrompt = null;
+                    installAppBtn.hidden = true;
+                    installAppBtn.disabled = false;
+                }
+            });
+
+            if ('serviceWorker' in navigator && typeof window.addEventListener === 'function') {
+                window.addEventListener('load', async () => {
+                    try {
+                        await navigator.serviceWorker.register('./service-worker.js');
+                        if (navigator.onLine && !standalone) setPwaStatus('PWA GOTOWA');
+                    } catch (error) {
+                        console.warn('Rejestracja service workera nie powiodła się:', error);
+                    }
+                });
+            }
+        }
+
         generateBtn.addEventListener('click', generateNewGlyph);
         saveBtn.addEventListener('click', saveCurrentGlyph);
         downloadBtn.addEventListener('click', downloadCurrentGlyph);
@@ -1997,6 +4214,31 @@
             }
         });
 
+        sentenceGenerate.addEventListener('click', generateSentenceFromInput);
+        sentenceRead.addEventListener('click', readCurrentSentence);
+        sentenceDownload.addEventListener('click', downloadSentencePng);
+        sentenceRecognize.addEventListener('click', () => sentenceImportFile.click());
+        sentenceImportFile.addEventListener('change', (e) => {
+            if (e.target.files && e.target.files[0]) {
+                recognizeSentencePng(e.target.files[0]);
+                e.target.value = '';
+            }
+        });
+        sentenceInput.addEventListener('keydown', (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                e.preventDefault();
+                generateSentenceFromInput();
+            }
+        });
+        sentenceInput.addEventListener('input', () => {
+            if (!currentSentenceModel) return;
+            if (sentenceInput.value.trim() === currentSentenceModel.rawText) return;
+            sentenceRead.disabled = true;
+            sentenceDownload.disabled = true;
+            sentenceRead.textContent = 'Odczytaj';
+            setSentenceFeedback('Tekst zmieniono. Kliknij „Generuj zdanie”, aby odświeżyć znaki.');
+        });
+
         recognitionCheck.addEventListener('click', checkRecognitionGuess);
         recognitionRandom.addEventListener('click', showRandomGlyphForRecognition);
         recognitionInput.addEventListener('keydown', (e) => {
@@ -2018,6 +4260,7 @@
                 const ctx = recognitionCanvas.getContext('2d');
                 paintPaper(ctx, recognitionCanvas.width, recognitionCanvas.height);
                 recognitionFeedback.textContent = '';
+                clearSentenceMode();
                 setStatus('Baza została zresetowana.', 'info');
                 setTimeout(clearStatus, 2000);
             }
@@ -2028,6 +4271,8 @@
         // =====================================================
 
         function init() {
+            setupPwa();
+
             // Uzupełnij tylko brakujące dane; wybrane wcześniej znaki pozostają bez zmian.
             upgradeDatabaseGlyphs();
 

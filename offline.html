@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="pl">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#050914">
+    <title>Glyph OS // Offline</title>
+    <style>
+        :root { color-scheme: dark; }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: grid;
+            place-items: center;
+            padding: 24px;
+            color: #e8fbff;
+            background:
+                radial-gradient(circle at 20% 0%, rgba(93,244,255,.16), transparent 38%),
+                linear-gradient(rgba(93,244,255,.035) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(93,244,255,.035) 1px, transparent 1px),
+                #03060d;
+            background-size: auto, 34px 34px, 34px 34px, auto;
+            font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+        }
+        main {
+            width: min(560px, 100%);
+            padding: 34px;
+            border: 1px solid rgba(93,244,255,.35);
+            border-radius: 12px;
+            background: rgba(7,15,29,.92);
+            box-shadow: 0 22px 70px rgba(0,0,0,.55), 0 0 32px rgba(93,244,255,.08);
+            text-align: center;
+        }
+        .code { color: #5df4ff; letter-spacing: .16em; font-size: .72rem; }
+        h1 { margin: 18px 0 10px; font-size: clamp(1.8rem, 8vw, 3rem); }
+        h1 span { color: #a879ff; }
+        p { color: #8ba9b8; line-height: 1.6; }
+        button {
+            margin-top: 12px;
+            padding: 12px 18px;
+            border: 1px solid #74f7ff;
+            border-radius: 5px;
+            color: #021015;
+            background: linear-gradient(135deg, #7df8ff, #1bc9e7);
+            font: 800 .8rem/1 ui-monospace, "SFMono-Regular", Consolas, monospace;
+            letter-spacing: .06em;
+            text-transform: uppercase;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <main>
+        <div class="code">CONNECTION // INTERRUPTED</div>
+        <h1>GLYPH <span>OS</span></h1>
+        <p>Brak połączenia z siecią. Jeżeli aplikacja została wcześniej uruchomiona, wróć do strony głównej — zapisane znaki pozostają w pamięci urządzenia.</p>
+        <button type="button" onclick="location.href='./index.html'">Uruchom ponownie</button>
+    </main>
+</body>
+</html>

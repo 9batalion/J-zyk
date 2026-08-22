@@ -1,0 +1,50 @@
+{
+  "id": "./",
+  "name": "Glyph OS — Język Obrazowy",
+  "short_name": "Glyph OS",
+  "description": "Generator własnego języka symboli, zdań i rozpoznawania obrazów.",
+  "lang": "pl-PL",
+  "dir": "ltr",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
+  "orientation": "any",
+  "background_color": "#03060d",
+  "theme_color": "#050914",
+  "categories": ["education", "utilities", "productivity"],
+  "icons": [
+    {
+      "src": "./icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Generator znaku",
+      "short_name": "Nowy znak",
+      "url": "./index.html#wordInput",
+      "icons": [{ "src": "./icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Generator zdań",
+      "short_name": "Zdanie",
+      "url": "./index.html#sentenceInput",
+      "icons": [{ "src": "./icons/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}
