@@ -1488,6 +1488,7 @@
                 w równych wierszach, z odstępami i automatycznym zawijaniem. Interpunkcja zachowa kolejność wypowiedzi. Odczyt PNG działa przez metadane oraz
                 własny silnik porównujący binarne mapy znaków z Twoją bazą. Możesz również wczytać
                 zwykły obraz zawierający same symbole — program wykryje wiersze i znaki od lewej do prawej.
+                Brakujące słowa otrzymają automatycznie nowe glify i zostaną zapisane w bazie.
             </p>
             <textarea
                 id="sentenceInput"
@@ -1519,7 +1520,8 @@
                 wielostronicowy dokument obrazkowy <strong>.glyphdoc</strong> z podglądami PNG oraz kopią
                 pliku źródłowego. Ten sam moduł odtworzy tekst i pozwoli pobrać dokładny oryginał.
                 Dopasowanie słów do bazy nie rozróżnia małych i wielkich liter. Format służy do zapisu
-                symbolicznego — nie jest szyfrowaniem.
+                symbolicznego — nie jest szyfrowaniem. Jeżeli w tekście występują nowe słowa, program
+                automatycznie utworzy dla nich glify, zapisze indeksy rozpoznawania i dopiero potem zakoduje dokument.
             </p>
             <div class="document-grid">
                 <div>
@@ -1549,7 +1551,7 @@
                 </div>
             </div>
             <div class="document-status" id="documentStatus" aria-live="polite">
-                Dokument może zawierać do 250 000 znaków i 20 000 elementów. Każde słowo musi mieć zapisany glif w bazie.
+                Dokument może zawierać do 250 000 znaków i 20 000 elementów. Brakujące glify zostaną utworzone automatycznie.
             </div>
         </div>
 
@@ -3908,13 +3910,40 @@
         function getSentenceStats(model) {
             const wordTokens = model.tokens.filter(token => token.type === 'word');
             const missingTokens = wordTokens.filter(token => !token.entry);
-            const missingWords = [...new Set(missingTokens.map(token => token.raw))];
+            const missingByKey = new Map();
+            missingTokens.forEach(token => {
+                if (!missingByKey.has(token.key)) missingByKey.set(token.key, token.raw);
+            });
+            const missingWords = [...missingByKey.values()];
             return {
                 wordCount: wordTokens.length,
                 knownCount: wordTokens.length - missingTokens.length,
                 punctuationCount: model.tokens.length - wordTokens.length,
                 missingWords,
             };
+        }
+
+        async function ensureMissingGlyphsInDatabase(missingWords, sourceName, onProgress = null) {
+            const unique = new Map();
+            missingWords.forEach(value => {
+                const word = String(value ?? '').normalize('NFC').trim();
+                const key = normalizeDictionaryKey(word);
+                if (word && key && !findWord(db, word) && !unique.has(key)) unique.set(key, word);
+            });
+            if (unique.size === 0) return { added: 0, skipped: 0, invalid: 0, total: 0 };
+            if (!globalThis.GlyphBulk?.importBackupRecords) {
+                throw new Error('Moduł trwałej bazy masowej nie jest dostępny. Odśwież aplikację i spróbuj ponownie.');
+            }
+            await globalThis.GlyphBulk.ready();
+            const records = [...unique.values()].map(word => ({
+                word,
+                sourceName: `auto:${sourceName || 'tekst'}`,
+            }));
+            const result = await globalThis.GlyphBulk.importBackupRecords(records, onProgress);
+            renderGallery();
+            updateWordCount();
+            await globalThis.GlyphLearning?.refresh?.();
+            return result;
         }
 
         function setSentenceFeedback(message, type = '') {
@@ -4066,7 +4095,7 @@
             return { model, stats };
         }
 
-        function generateSentenceFromInput() {
+        async function generateSentenceFromInput() {
             const text = sentenceInput.value.trim();
             if (!text) {
                 setSentenceFeedback('Wpisz zdanie, które chcesz zamienić na znaki.', 'warning');
@@ -4074,18 +4103,46 @@
                 return;
             }
 
-            const result = applySentenceText(text);
+            let result = applySentenceText(text);
             if (!result) return;
 
             if (result.stats.wordCount === 0) {
                 setSentenceFeedback('Zdanie nie zawiera słów możliwych do zamiany na znaki.', 'warning');
             } else if (result.stats.missingWords.length > 0) {
-                const preview = result.stats.missingWords.slice(0, 10).join(', ');
-                const suffix = result.stats.missingWords.length > 10 ? '…' : '';
-                setSentenceFeedback(
-                    `Brak znaków dla: ${preview}${suffix}. Kliknij czerwone pole, aby przejść do generatora.`,
-                    'warning'
-                );
+                const originalLabel = sentenceGenerate.textContent;
+                sentenceGenerate.disabled = true;
+                sentenceInput.disabled = true;
+                sentenceDownload.disabled = true;
+                sentenceGenerate.textContent = 'Tworzenie glifów…';
+                try {
+                    const missingCount = result.stats.missingWords.length;
+                    setSentenceFeedback(`Wykryto ${missingCount} nowych słów. Tworzę glify i indeksy rozpoznawania…`);
+                    const created = await ensureMissingGlyphsInDatabase(
+                        result.stats.missingWords,
+                        'zdanie',
+                        progress => {
+                            sentenceGenerate.textContent = `Glify ${progress.processed}/${progress.total}`;
+                            setSentenceFeedback(
+                                `Dodawanie nowych glifów: ${progress.processed.toLocaleString('pl-PL')}/${progress.total.toLocaleString('pl-PL')} • zapisano ${progress.added.toLocaleString('pl-PL')}`
+                            );
+                        }
+                    );
+                    result = applySentenceText(text);
+                    if (!result || result.stats.missingWords.length > 0) {
+                        throw new Error(`Po automatycznym zapisie nadal brakuje ${result?.stats.missingWords.length || missingCount} glifów.`);
+                    }
+                    setSentenceFeedback(
+                        `Zdanie jest kompletne. Automatycznie utworzono ${created.added.toLocaleString('pl-PL')} nowych glifów; rozpoznano wszystkie ${result.stats.wordCount} słów.`,
+                        'success'
+                    );
+                } catch (error) {
+                    console.error('Automatyczne tworzenie glifów zdania nie powiodło się:', error);
+                    setSentenceFeedback(`Nie udało się utworzyć brakujących glifów: ${error.message}`, 'warning');
+                } finally {
+                    sentenceGenerate.disabled = false;
+                    sentenceInput.disabled = false;
+                    sentenceGenerate.textContent = originalLabel;
+                }
             } else {
                 setSentenceFeedback(
                     `Zdanie jest kompletne: rozpoznano wszystkie ${result.stats.wordCount} słów.`,
@@ -5665,8 +5722,8 @@
                 return;
             }
 
-            const model = buildDocumentModel(text, currentDocumentSourceName);
-            const stats = getDocumentStats(model);
+            let model = buildDocumentModel(text, currentDocumentSourceName);
+            let stats = getDocumentStats(model);
             if (stats.elementCount > DOCUMENT_MAX_TOKENS) {
                 setDocumentStatus(`Dokument ma ${stats.elementCount.toLocaleString('pl-PL')} elementów. Limit wynosi ${DOCUMENT_MAX_TOKENS.toLocaleString('pl-PL')}.`, 'warning');
                 return;
@@ -5675,20 +5732,45 @@
                 setDocumentStatus('Dokument nie zawiera słów możliwych do zakodowania.', 'warning');
                 return;
             }
-            if (stats.missingWords.length > 0) {
-                const preview = stats.missingWords.slice(0, 14).join(', ');
-                const suffix = stats.missingWords.length > 14 ? '…' : '';
-                setDocumentStatus(`Brak glifów dla ${stats.missingWords.length} słów: ${preview}${suffix}`, 'warning');
-                return;
-            }
-
             const originalLabel = documentEncode.textContent;
             documentEncode.disabled = true;
+            documentInput.disabled = true;
+            documentLoadSource.disabled = true;
             documentDownload.disabled = true;
             documentEncode.textContent = 'Kodowanie…';
             currentEncodedDocument = null;
+            let autoGlyphResult = { added: 0, skipped: 0, invalid: 0, total: 0 };
 
             try {
+                if (stats.missingWords.length > 0) {
+                    const missingCount = stats.missingWords.length;
+                    documentEncode.textContent = `Glify 0/${missingCount}`;
+                    setDocumentStatus(
+                        `Wykryto ${missingCount.toLocaleString('pl-PL')} nowych słów. Nadaję im glify i zapisuję indeksy rozpoznawania…`
+                    );
+                    autoGlyphResult = await ensureMissingGlyphsInDatabase(
+                        stats.missingWords,
+                        currentDocumentSourceName || 'dokument',
+                        progress => {
+                            documentEncode.textContent = `Glify ${progress.processed}/${progress.total}`;
+                            setDocumentStatus(
+                                `Tworzenie brakujących glifów: ${progress.processed.toLocaleString('pl-PL')}/${progress.total.toLocaleString('pl-PL')} • zapisano ${progress.added.toLocaleString('pl-PL')} • duplikaty ${progress.skipped.toLocaleString('pl-PL')}`
+                            );
+                        }
+                    );
+                    model = buildDocumentModel(text, currentDocumentSourceName);
+                    stats = getDocumentStats(model);
+                    if (stats.missingWords.length > 0) {
+                        throw new Error(`Po automatycznym zapisie nadal brakuje ${stats.missingWords.length} glifów.`);
+                    }
+                    documentEncode.textContent = 'Kodowanie…';
+                    setDocumentStatus(
+                        `Zapisano ${autoGlyphResult.added.toLocaleString('pl-PL')} nowych glifów. Rozpoczynam kodowanie dokumentu…`,
+                        'success'
+                    );
+                    await new Promise(resolve => setTimeout(resolve, 0));
+                }
+
                 const pages = layoutDocumentPages(model);
                 if (pages.length > DOCUMENT_MAX_PAGES) {
                     throw new Error(`Dokument wymaga ${pages.length} stron. Limit wynosi ${DOCUMENT_MAX_PAGES}.`);
@@ -5763,6 +5845,7 @@
                         words: stats.wordCount,
                         elements: stats.elementCount,
                         pages: pages.length,
+                        autoGeneratedGlyphs: autoGlyphResult.added,
                     },
                     pages: pageManifest,
                 };
@@ -5783,7 +5866,7 @@
                 currentDecodedOriginalFile = currentDocumentOriginalFile;
                 documentDownloadOriginal.disabled = !currentDecodedOriginalFile;
                 setDocumentStatus(
-                    `Zakodowano ${stats.wordCount.toLocaleString('pl-PL')} słów na ${pages.length} ${pages.length === 1 ? 'stronie' : 'stronach'}.${originalFile ? ' Dołączono plik źródłowy.' : ''} Wielkość liter nie wpływa na dobór glifów.`,
+                    `Zakodowano ${stats.wordCount.toLocaleString('pl-PL')} słów na ${pages.length} ${pages.length === 1 ? 'stronie' : 'stronach'}.${autoGlyphResult.added ? ` Automatycznie dodano ${autoGlyphResult.added.toLocaleString('pl-PL')} nowych glifów do bazy.` : ''}${originalFile ? ' Dołączono plik źródłowy.' : ''} Wielkość liter nie wpływa na dobór glifów.`,
                     'success'
                 );
             } catch (error) {
@@ -5791,6 +5874,8 @@
                 setDocumentStatus(`Nie udało się zakodować dokumentu: ${error.message}`, 'warning');
             } finally {
                 documentEncode.disabled = false;
+                documentInput.disabled = false;
+                documentLoadSource.disabled = false;
                 documentEncode.textContent = originalLabel;
             }
         }
