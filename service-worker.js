@@ -1,4 +1,4 @@
-const CACHE_NAME = 'glyph-os-static-v1.5.0';
+const CACHE_NAME = 'glyph-os-static-v1.8.0';
 const CORE_ASSETS = [
     './',
     './index.html',
@@ -7,6 +7,10 @@ const CORE_ASSETS = [
     './icons/icon-192.png',
     './icons/icon-512.png',
     './icons/icon-maskable-512.png',
+    './vendor/jszip.min.js',
+    './vendor/pdf.mjs',
+    './vendor/pdf.worker.mjs',
+    './vendor/JSZIP-LICENSE.md',
 ];
 
 self.addEventListener('install', event => {

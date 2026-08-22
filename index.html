@@ -493,6 +493,109 @@
         .recognition-feedback.correct {
             color: var(--success);
         }
+
+        /* ============ DOCUMENT CODEC ============ */
+        .document-section {
+            margin-top: 28px;
+        }
+
+        .document-intro {
+            color: var(--text-muted);
+            margin-bottom: 18px;
+            line-height: 1.65;
+        }
+
+        .document-grid {
+            display: grid;
+            grid-template-columns: minmax(0, 1.1fr) minmax(280px, 0.9fr);
+            gap: 22px;
+            align-items: start;
+        }
+
+        .document-input {
+            width: 100%;
+            min-height: 250px;
+            resize: vertical;
+            padding: 16px;
+            color: #dffcff;
+            background: rgba(1, 10, 20, 0.78);
+            border: 1px solid rgba(93, 244, 255, 0.24);
+            border-radius: 7px;
+            outline: none;
+            font: 0.94rem/1.6 ui-monospace, "SFMono-Regular", Consolas, monospace;
+        }
+
+        .document-input:focus {
+            border-color: var(--gold);
+            box-shadow: 0 0 0 3px rgba(93, 244, 255, 0.06), 0 0 18px rgba(93, 244, 255, 0.1);
+        }
+
+        .document-counter {
+            min-height: 1.5em;
+            margin: 8px 0 14px;
+            color: #7fa8b2;
+            font: 0.78rem/1.4 ui-monospace, "SFMono-Regular", Consolas, monospace;
+        }
+
+        .document-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .document-toolbar .btn {
+            flex: 1 1 180px;
+        }
+
+        .document-preview {
+            min-height: 360px;
+            padding: 14px;
+            display: grid;
+            place-items: center;
+            border: 1px solid rgba(93, 244, 255, 0.2);
+            border-radius: 7px;
+            background: rgba(1, 10, 20, 0.52);
+            overflow: hidden;
+        }
+
+        .document-preview canvas {
+            display: block;
+            width: 100%;
+            height: auto;
+            max-height: 600px;
+            object-fit: contain;
+            background: #eeeae1;
+            box-shadow: 0 10px 34px rgba(0, 0, 0, 0.28);
+        }
+
+        .document-preview-empty {
+            color: #668892;
+            text-align: center;
+            font: 0.82rem/1.6 ui-monospace, "SFMono-Regular", Consolas, monospace;
+        }
+
+        .document-status {
+            margin-top: 16px;
+            min-height: 52px;
+            padding: 12px 14px;
+            border: 1px solid rgba(93, 244, 255, 0.22);
+            border-radius: 6px;
+            color: #9bd6df;
+            background: rgba(21, 67, 79, 0.16);
+            font: 0.82rem/1.5 ui-monospace, "SFMono-Regular", Consolas, monospace;
+        }
+
+        .document-status.success {
+            color: var(--success);
+            border-color: rgba(82, 255, 200, 0.36);
+            background: rgba(82, 255, 200, 0.07);
+        }
+
+        .document-status.warning {
+            color: #ff8ba3;
+            border-color: rgba(255, 95, 127, 0.4);
+            background: rgba(255, 95, 127, 0.07);
+        }
         .recognition-feedback.incorrect {
             color: var(--danger);
         }
@@ -571,16 +674,18 @@
             border-color: rgba(192, 88, 88, 0.5);
         }
         .sentence-output {
-            min-height: 144px;
+            min-height: 164px;
             display: flex;
-            align-items: flex-start;
+            align-items: baseline;
             align-content: flex-start;
             flex-wrap: wrap;
-            gap: 10px;
-            padding: 14px;
+            column-gap: 0;
+            row-gap: 16px;
+            padding: 22px;
             border-radius: var(--radius-sm);
             border: 1px solid var(--border);
-            background: rgba(13, 13, 22, 0.38);
+            background: var(--bg-canvas);
+            color: var(--ink);
         }
         .sentence-empty {
             width: 100%;
@@ -590,56 +695,76 @@
             font-style: italic;
         }
         .sentence-token {
-            width: 94px;
-            min-height: 118px;
-            border-radius: var(--radius-sm);
+            position: relative;
+            flex: 0 0 78px;
+            width: 78px;
+            height: 82px;
+            min-height: 0;
+            margin: 2px 9px 2px 0;
+            border-radius: 5px;
             border: 1px solid transparent;
-            background: #252538;
+            background: transparent;
             display: flex;
-            flex-direction: column;
             align-items: center;
-            justify-content: flex-start;
-            padding: 7px;
+            justify-content: center;
+            padding: 3px;
             cursor: pointer;
-            transition: transform var(--transition), border-color var(--transition);
+            transition: transform var(--transition), border-color var(--transition), background var(--transition);
         }
         .sentence-token:hover,
         .sentence-token:focus-visible {
-            transform: translateY(-2px);
+            transform: translateY(-1px);
             border-color: var(--gold);
+            background: rgba(255, 255, 255, 0.42);
             outline: none;
         }
         .sentence-token canvas {
-            width: 78px;
-            height: 78px;
-            border-radius: 4px;
-            background: var(--bg-canvas);
+            width: 72px;
+            height: 72px;
+            background: transparent;
         }
         .sentence-token-index {
-            color: var(--text-muted);
-            font-size: 0.7rem;
-            margin-top: 4px;
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            overflow: hidden;
+            clip: rect(0 0 0 0);
         }
         .sentence-token-label {
-            width: 100%;
-            color: var(--gold-bright);
-            font-size: 0.76rem;
+            position: absolute;
+            z-index: 4;
+            top: calc(100% - 2px);
+            left: 50%;
+            width: max-content;
+            max-width: 132px;
+            padding: 4px 7px;
+            border: 1px solid rgba(93, 244, 255, 0.34);
+            border-radius: 5px;
+            color: #dffcff;
+            background: #061421;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.34);
+            font-size: 0.7rem;
             line-height: 1.2;
             text-align: center;
             word-break: break-word;
-            margin-top: 3px;
             opacity: 0;
-            transform: translateY(-2px);
+            transform: translate(-50%, -4px);
             transition: opacity var(--transition), transform var(--transition);
+            pointer-events: none;
         }
         .sentence-token.revealed .sentence-token-label,
         .sentence-output.show-labels .sentence-token-label {
             opacity: 1;
-            transform: translateY(0);
+            transform: translate(-50%, 0);
+        }
+        .sentence-output.show-labels {
+            row-gap: 38px;
+            padding-bottom: 42px;
         }
         .sentence-token.unknown {
             border-color: rgba(192, 88, 88, 0.55);
             background: rgba(192, 88, 88, 0.1);
+            margin-bottom: 24px;
         }
         .sentence-token.unknown canvas {
             opacity: 0.65;
@@ -647,18 +772,30 @@
         .sentence-token.unknown .sentence-token-label {
             color: var(--danger);
             opacity: 1;
-            transform: none;
+            transform: translate(-50%, 0);
         }
         .sentence-punctuation {
-            min-width: 30px;
-            height: 92px;
+            min-width: 20px;
+            height: 82px;
             display: inline-flex;
             align-items: flex-end;
             justify-content: center;
-            padding: 0 2px 18px;
-            color: var(--gold-bright);
-            font-size: 2rem;
+            margin-right: 7px;
+            padding: 0 2px 12px;
+            color: #18352e;
+            font-size: 1.9rem;
             font-weight: 700;
+        }
+        .sentence-punctuation.closing {
+            margin-left: -9px;
+        }
+        .sentence-punctuation.opening {
+            margin-right: -1px;
+        }
+        .sentence-punctuation.joining {
+            min-width: 16px;
+            margin-left: -7px;
+            margin-right: 2px;
         }
         .sentence-feedback {
             margin-top: 12px;
@@ -687,12 +824,18 @@
                 padding-inline: 12px;
             }
             .sentence-output {
-                gap: 7px;
-                padding: 10px;
+                row-gap: 12px;
+                padding: 15px 12px;
             }
             .sentence-token {
-                width: calc(33.333% - 5px);
-                min-width: 82px;
+                flex-basis: 66px;
+                width: 66px;
+                height: 72px;
+                margin-right: 7px;
+            }
+            .sentence-token canvas {
+                width: 62px;
+                height: 62px;
             }
         }
 
@@ -1143,16 +1286,13 @@
             letter-spacing: 0.025em;
         }
 
-        .gallery-card,
-        .sentence-token {
+        .gallery-card {
             border: 1px solid rgba(93, 244, 255, 0.12);
             border-radius: 7px;
             background: rgba(18, 35, 53, 0.72);
         }
 
-        .gallery-card:hover,
-        .sentence-token:hover,
-        .sentence-token:focus-visible {
+        .gallery-card:hover {
             border-color: var(--gold);
             box-shadow: 0 0 20px rgba(93, 244, 255, 0.12);
         }
@@ -1174,10 +1314,9 @@
         .sentence-output {
             border-color: rgba(93, 244, 255, 0.14);
             background:
-                linear-gradient(rgba(93, 244, 255, 0.022) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(93, 244, 255, 0.022) 1px, transparent 1px),
-                rgba(1, 6, 14, 0.52);
-            background-size: 22px 22px;
+                linear-gradient(rgba(24, 53, 46, 0.028) 1px, transparent 1px),
+                #eeeae1;
+            background-size: 100% 28px;
         }
 
         .status-message,
@@ -1255,6 +1394,18 @@
             .btn {
                 white-space: normal;
             }
+
+            .document-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .document-input {
+                min-height: 210px;
+            }
+
+            .document-preview {
+                min-height: 280px;
+            }
         }
     </style>
 </head>
@@ -1264,7 +1415,7 @@
         <header>
             <div class="system-kicker"><span class="system-dot"></span> GLYPH OS // SYMBOLIC CORE</div>
             <h1>JĘZYK <span>//</span> OBRAZOWY</h1>
-            <p>Twórz własne znaki dla słów, zapisuj je w bazie, a następnie układaj z nich pełne zdania, które program potrafi ponownie odczytać.</p>
+            <p>Twórz własne znaki dla słów, układaj z nich zdania i całe dokumenty obrazkowe, które program potrafi ponownie odczytać.</p>
             <div class="ornament"></div>
             <div class="pwa-controls">
                 <span class="pwa-status" id="pwaStatus"><span></span> TRYB PRZEGLĄDARKI</span>
@@ -1331,8 +1482,8 @@
         <div class="panel sentence-section">
             <h2><span class="icon">03</span> Generator Zdań</h2>
             <p class="sentence-intro">
-                Wpisz pełne zdanie. Każde słowo zostanie zastąpione znakiem zapisanym w bazie,
-                a interpunkcja zachowa kolejność wypowiedzi. Odczyt PNG działa przez metadane oraz
+                Wpisz pełne zdanie. Symbole zostaną ułożone jak tekst pisany własną czcionką —
+                w równych wierszach, z odstępami i automatycznym zawijaniem. Interpunkcja zachowa kolejność wypowiedzi. Odczyt PNG działa przez metadane oraz
                 własny silnik porównujący binarne mapy znaków z Twoją bazą. Możesz również wczytać
                 zwykły obraz zawierający same symbole — program wykryje wiersze i znaki od lewej do prawej.
             </p>
@@ -1358,9 +1509,51 @@
             </div>
         </div>
 
+        <!-- DOCUMENT CODEC -->
+        <div class="panel document-section">
+            <h2><span class="icon">04</span> Koder Dokumentów</h2>
+            <p class="document-intro">
+                Wczytaj TXT, HTML, DOCX, ODT lub PDF albo wklej treść. Aplikacja zapisze ją jako
+                wielostronicowy dokument obrazkowy <strong>.glyphdoc</strong> z podglądami PNG oraz kopią
+                pliku źródłowego. Ten sam moduł odtworzy tekst i pozwoli pobrać dokładny oryginał.
+                Dopasowanie słów do bazy nie rozróżnia małych i wielkich liter. Format służy do zapisu
+                symbolicznego — nie jest szyfrowaniem.
+            </p>
+            <div class="document-grid">
+                <div>
+                    <textarea
+                        id="documentInput"
+                        class="document-input"
+                        maxlength="250000"
+                        placeholder="Wklej treść albo wczytaj TXT, HTML, DOCX, ODT lub PDF…"
+                    ></textarea>
+                    <div class="document-counter" id="documentCounter">0 znaków // 0 słów</div>
+                    <div class="document-toolbar">
+                        <button class="btn btn-secondary" id="documentLoadSource">Wczytaj tekst</button>
+                        <button class="btn btn-primary" id="documentEncode">Zakoduj dokument</button>
+                        <button class="btn btn-success" id="documentDownload" disabled>Pobierz .GLYPHDOC</button>
+                        <button class="btn btn-secondary" id="documentDecode">Dekoduj dokument</button>
+                        <button class="btn btn-secondary" id="documentDownloadText" disabled>Pobierz odkodowany TXT</button>
+                        <button class="btn btn-secondary" id="documentDownloadOriginal" disabled>Pobierz oryginalny plik</button>
+                        <input type="file" id="documentSourceFile" accept=".txt,.md,.csv,.json,.log,.html,.htm,.doc,.docx,.odt,.pdf,text/plain,text/markdown,text/csv,text/html,application/json,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.oasis.opendocument.text,application/pdf" style="display:none;" />
+                        <input type="file" id="documentDecodeFile" accept=".glyphdoc,.zip,.png,application/zip,image/png" style="display:none;" />
+                    </div>
+                </div>
+                <div class="document-preview" id="documentPreview">
+                    <div class="document-preview-empty" id="documentPreviewEmpty">
+                        Podgląd pierwszej strony dokumentu obrazkowego pojawi się tutaj.
+                    </div>
+                    <canvas id="documentPreviewCanvas" width="1200" height="1600" hidden></canvas>
+                </div>
+            </div>
+            <div class="document-status" id="documentStatus" aria-live="polite">
+                Dokument może zawierać do 250 000 znaków i 20 000 elementów. Każde słowo musi mieć zapisany glif w bazie.
+            </div>
+        </div>
+
         <!-- RECOGNITION MODE -->
         <div class="panel recognition-section">
-            <h2><span class="icon">04</span> Tryb Rozpoznawania</h2>
+            <h2><span class="icon">05</span> Tryb Rozpoznawania</h2>
             <p style="color:var(--text-muted); margin-bottom:16px; font-size:0.95rem;">
                 Zobacz znak i odgadnij, jakie słowo reprezentuje. Kliknij <strong>Losuj znak</strong>, aby rozpocząć.
             </p>
@@ -1379,10 +1572,11 @@
 
         <!-- FOOTER -->
         <footer>
-            <p>Generator Języka Obrazowego — słowa stają się znakami, a znaki pełnymi zdaniami. <a href="#" id="footerReset">Zresetuj bazę</a></p>
+            <p>Generator Języka Obrazowego — słowa stają się znakami, a znaki zdaniami i dokumentami. <a href="#" id="footerReset">Zresetuj bazę</a></p>
         </footer>
     </div>
 
+    <script src="./vendor/jszip.min.js"></script>
     <script>
         // =====================================================
         // ==================== UTILITIES ====================
@@ -2778,6 +2972,20 @@
         const sentenceSummary = document.getElementById('sentenceSummary');
         const sentenceOutput = document.getElementById('sentenceOutput');
         const sentenceFeedback = document.getElementById('sentenceFeedback');
+        const documentInput = document.getElementById('documentInput');
+        const documentCounter = document.getElementById('documentCounter');
+        const documentLoadSource = document.getElementById('documentLoadSource');
+        const documentSourceFile = document.getElementById('documentSourceFile');
+        const documentEncode = document.getElementById('documentEncode');
+        const documentDownload = document.getElementById('documentDownload');
+        const documentDecode = document.getElementById('documentDecode');
+        const documentDecodeFile = document.getElementById('documentDecodeFile');
+        const documentDownloadText = document.getElementById('documentDownloadText');
+        const documentDownloadOriginal = document.getElementById('documentDownloadOriginal');
+        const documentPreview = document.getElementById('documentPreview');
+        const documentPreviewEmpty = document.getElementById('documentPreviewEmpty');
+        const documentPreviewCanvas = document.getElementById('documentPreviewCanvas');
+        const documentStatus = document.getElementById('documentStatus');
         const installAppBtn = document.getElementById('installAppBtn');
         const pwaStatus = document.getElementById('pwaStatus');
 
@@ -2788,6 +2996,11 @@
         let currentGlyphIsDraft = false;
         let recognitionCurrentWord = null;
         let currentSentenceModel = null;
+        let currentEncodedDocument = null;
+        let currentDecodedDocumentText = '';
+        let currentDocumentOriginalFile = null;
+        let currentDecodedOriginalFile = null;
+        let currentDocumentSourceName = 'dokument.txt';
         let deferredInstallPrompt = null;
         let variantNonce = 0;
         const recentVariantSignatures = new Map();
@@ -3415,7 +3628,7 @@
         // =====================================================
 
         const SENTENCE_FORMAT = 'JOS-SENTENCE';
-        const SENTENCE_FORMAT_VERSION = 1;
+        const SENTENCE_FORMAT_VERSION = 2;
         const SENTENCE_METADATA_KEY = 'JOSentence';
         const SENTENCE_MAX_TOKENS = 100;
         const BINARY_MAP_SIZE = 40;
@@ -3505,12 +3718,27 @@
 
         function paintUnknownSentenceGlyph(canvas) {
             const ctx = canvas.getContext('2d');
-            paintPaper(ctx, canvas.width, canvas.height);
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.fillStyle = '#a94f4f';
             ctx.font = `700 ${Math.round(canvas.width * 0.42)}px Georgia, serif`;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.fillText('?', canvas.width / 2, canvas.height / 2);
+        }
+
+        /** Rysuje znak bez kafelka — jak glif własnej czcionki. */
+        function renderFontGlyph(canvas, strokes) {
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            strokes.forEach(stroke => drawStroke(ctx, stroke, canvas.width, canvas.height, 1));
+        }
+
+        function createFontGlyphCanvas(strokes, size = 180) {
+            const canvas = document.createElement('canvas');
+            canvas.width = size;
+            canvas.height = size;
+            renderFontGlyph(canvas, strokes);
+            return canvas;
         }
 
         function focusMissingSentenceWord(word) {
@@ -3527,6 +3755,9 @@
             sentenceOutput.innerHTML = '';
             sentenceOutput.classList.remove('show-labels');
             let wordPosition = 0;
+            const closingPunctuation = new Set(['.', ',', '!', '?', ';', ':', '…', ')', ']', '}', '”', '»']);
+            const openingPunctuation = new Set(['(', '[', '{', '„', '«']);
+            const joiningPunctuation = new Set(['-', '–', '—', '/']);
 
             if (model.tokens.length === 0) {
                 sentenceOutput.innerHTML = '<div class="sentence-empty">Wpisz zdanie zawierające co najmniej jedno słowo.</div>';
@@ -3537,6 +3768,9 @@
                 if (token.type === 'punctuation') {
                     const punctuation = document.createElement('span');
                     punctuation.className = 'sentence-punctuation';
+                    if (closingPunctuation.has(token.raw)) punctuation.classList.add('closing');
+                    if (openingPunctuation.has(token.raw)) punctuation.classList.add('opening');
+                    if (joiningPunctuation.has(token.raw)) punctuation.classList.add('joining');
                     punctuation.textContent = token.raw;
                     punctuation.setAttribute('aria-label', `Interpunkcja: ${token.raw}`);
                     sentenceOutput.appendChild(punctuation);
@@ -3550,12 +3784,15 @@
                 card.title = token.entry
                     ? 'Kliknij, aby odsłonić znaczenie'
                     : 'Kliknij, aby przejść do generatora brakującego słowa';
+                card.setAttribute('aria-label', token.entry
+                    ? `Znak ${wordPosition}: ${token.entry.word}`
+                    : `Brak znaku dla słowa: ${token.raw}`);
 
                 const canvas = document.createElement('canvas');
-                canvas.width = 156;
-                canvas.height = 156;
+                canvas.width = 132;
+                canvas.height = 132;
                 if (token.entry) {
-                    renderGlyph(canvas, getEntryGlyph(token.entry), false, 0);
+                    renderFontGlyph(canvas, getEntryGlyph(token.entry));
                 } else {
                     paintUnknownSentenceGlyph(canvas);
                 }
@@ -3669,69 +3906,85 @@
 
         function createSentenceExportCanvas(model) {
             const tokens = model.tokens;
-            const columns = Math.min(8, Math.max(1, Math.ceil(Math.sqrt(tokens.length * 1.45))));
-            const tileSize = 118;
-            const gap = 14;
-            const margin = 44;
-            const headerHeight = 82;
-            const footerHeight = 46;
-            const rows = Math.ceil(tokens.length / columns);
-            const width = margin * 2 + columns * tileSize + (columns - 1) * gap;
-            const height = headerHeight + margin + rows * tileSize + (rows - 1) * gap + footerHeight;
+            const maximumWidth = 1200;
+            const margin = 48;
+            const glyphSize = 96;
+            const lineHeight = 118;
+            const wordGap = 18;
+            const punctuationGap = 4;
+            const closingPunctuation = new Set(['.', ',', '!', '?', ';', ':', '…', ')', ']', '}', '”', '»']);
+            const openingPunctuation = new Set(['(', '[', '{', '„', '«']);
+            const joiningPunctuation = new Set(['-', '–', '—', '/']);
+            const punctuationWidth = token => Math.max(24, [...token.raw].length * 30);
+            const itemWidth = token => token.type === 'word' ? glyphSize : punctuationWidth(token);
+            const gapBefore = (token, previous) => {
+                if (!previous) return 0;
+                if (token.type === 'punctuation' && closingPunctuation.has(token.raw)) return 0;
+                if (token.type === 'punctuation' && joiningPunctuation.has(token.raw)) return punctuationGap;
+                if (previous.type === 'punctuation' && (openingPunctuation.has(previous.raw) || joiningPunctuation.has(previous.raw))) {
+                    return punctuationGap;
+                }
+                return wordGap;
+            };
+
+            const positions = [];
+            let cursorX = margin;
+            let cursorY = margin;
+            let maximumLineRight = margin;
+            let previous = null;
+
+            tokens.forEach((token, index) => {
+                const width = itemWidth(token);
+                let gap = gapBefore(token, previous);
+                const next = tokens[index + 1];
+                const nextClosingWidth = token.type === 'word' && next?.type === 'punctuation' && closingPunctuation.has(next.raw)
+                    ? itemWidth(next)
+                    : 0;
+                const requiredWidth = width + nextClosingWidth;
+
+                if (cursorX + gap + requiredWidth > maximumWidth - margin && cursorX > margin) {
+                    cursorX = margin;
+                    cursorY += lineHeight;
+                    gap = 0;
+                }
+
+                cursorX += gap;
+                positions.push({ token, x: cursorX, y: cursorY, width });
+                cursorX += width;
+                maximumLineRight = Math.max(maximumLineRight, cursorX);
+                previous = token;
+            });
+
+            const width = Math.max(360, Math.min(maximumWidth, Math.ceil(maximumLineRight + margin)));
+            const height = Math.max(190, Math.ceil(cursorY + glyphSize + margin));
             const canvas = document.createElement('canvas');
             canvas.width = width;
             canvas.height = height;
             const ctx = canvas.getContext('2d');
-
             paintExportPaper(ctx, width, height);
-            ctx.fillStyle = '#18352e';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.font = '700 30px Georgia, serif';
-            ctx.fillText('JĘZYK OBRAZOWY • ZDANIE', width / 2, 36);
-            ctx.font = '16px Georgia, serif';
-            ctx.fillStyle = '#6e6a61';
-            const wordCount = tokens.filter(token => token.type === 'word').length;
-            ctx.fillText(`${wordCount} ${wordCount === 1 ? 'znak' : 'znaków'} • odczyt zapisany w PNG`, width / 2, 65);
 
-            let wordPosition = 0;
-            tokens.forEach((token, index) => {
-                const column = index % columns;
-                const row = Math.floor(index / columns);
-                const x = margin + column * (tileSize + gap);
-                const y = headerHeight + row * (tileSize + gap);
-
+            positions.forEach(({ token, x, y, width: tokenWidth }) => {
                 if (token.type === 'punctuation') {
                     ctx.fillStyle = '#18352e';
-                    ctx.font = '700 58px Georgia, serif';
-                    ctx.fillText(token.raw, x + tileSize / 2, y + tileSize / 2 - 3);
+                    ctx.font = '700 54px Georgia, serif';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'alphabetic';
+                    ctx.fillText(token.raw, x + tokenWidth / 2, y + glyphSize * 0.78);
                     return;
                 }
 
-                wordPosition++;
-                ctx.fillStyle = '#f4f0e8';
-                ctx.fillRect(x, y, tileSize, tileSize);
-                ctx.strokeStyle = '#d1c9ba';
-                ctx.lineWidth = 1;
-                ctx.strokeRect(x + 0.5, y + 0.5, tileSize - 1, tileSize - 1);
-
                 if (token.entry) {
-                    const glyphCanvas = createExportCanvas(getEntryGlyph(token.entry), 220);
-                    ctx.drawImage(glyphCanvas, x + 7, y + 7, tileSize - 14, tileSize - 14);
+                    const glyphCanvas = createFontGlyphCanvas(getEntryGlyph(token.entry), 220);
+                    ctx.drawImage(glyphCanvas, x, y, glyphSize, glyphSize);
                 } else {
                     ctx.fillStyle = '#a94f4f';
-                    ctx.font = '700 58px Georgia, serif';
-                    ctx.fillText('?', x + tileSize / 2, y + tileSize / 2);
+                    ctx.font = '700 54px Georgia, serif';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText('?', x + glyphSize / 2, y + glyphSize / 2);
                 }
-
-                ctx.fillStyle = 'rgba(24, 53, 46, 0.62)';
-                ctx.font = '13px Georgia, serif';
-                ctx.fillText(String(wordPosition), x + tileSize - 12, y + tileSize - 12);
             });
 
-            ctx.fillStyle = '#7c776d';
-            ctx.font = '13px Georgia, serif';
-            ctx.fillText('JOS1 • zachowaj oryginalny plik PNG, aby ponownie go rozpoznać', width / 2, height - 20);
             return canvas;
         }
 
@@ -3758,10 +4011,13 @@
             return chunk;
         }
 
-        function addPngSentenceMetadata(pngBytes, payload) {
+        function addPngTextMetadata(pngBytes, metadataKey, payload) {
             const signature = [137, 80, 78, 71, 13, 10, 26, 10];
             if (pngBytes.length < 20 || !signature.every((value, index) => pngBytes[index] === value)) {
                 throw new Error('Nieprawidłowy plik PNG.');
+            }
+            if (!metadataKey || new TextEncoder().encode(metadataKey).length > 79) {
+                throw new Error('Nieprawidłowy klucz metadanych PNG.');
             }
 
             let offset = 8;
@@ -3782,7 +4038,7 @@
             if (iendOffset < 0) throw new Error('Plik PNG nie zawiera zakończenia IEND.');
 
             const encoder = new TextEncoder();
-            const keyword = encoder.encode(SENTENCE_METADATA_KEY);
+            const keyword = encoder.encode(metadataKey);
             const json = encoder.encode(JSON.stringify(payload));
             // iTXt: keyword, flag kompresji, metoda, język, tłumaczone słowo, tekst UTF-8.
             const data = concatUint8Arrays([
@@ -3798,10 +4054,15 @@
             ]);
         }
 
+        function addPngSentenceMetadata(pngBytes, payload) {
+            return addPngTextMetadata(pngBytes, SENTENCE_METADATA_KEY, payload);
+        }
+
         function buildSentencePayload(model) {
             return {
                 format: SENTENCE_FORMAT,
                 formatVersion: SENTENCE_FORMAT_VERSION,
+                layout: 'font-flow-v1',
                 createdAt: new Date().toISOString(),
                 text: model.rawText,
                 tokens: model.tokens.map(token => {
@@ -3868,7 +4129,7 @@
             return -1;
         }
 
-        function extractSentencePayloadFromPng(pngBytes) {
+        function extractPngTextMetadata(pngBytes, metadataKey) {
             const signature = [137, 80, 78, 71, 13, 10, 26, 10];
             if (pngBytes.length < 20 || !signature.every((value, index) => pngBytes[index] === value)) {
                 throw new Error('Wybrany plik nie jest prawidłowym PNG.');
@@ -3902,7 +4163,7 @@
                         if (translatedEnd < 0) throw new Error('Uszkodzone metadane PNG.');
                         cursor = translatedEnd + 1;
 
-                        if (keyword === SENTENCE_METADATA_KEY && compressionFlag === 0) {
+                        if (keyword === metadataKey && compressionFlag === 0) {
                             return JSON.parse(decoder.decode(data.slice(cursor)));
                         }
                     }
@@ -3911,6 +4172,10 @@
                 offset = dataEnd + 4;
             }
             return null;
+        }
+
+        function extractSentencePayloadFromPng(pngBytes) {
+            return extractPngTextMetadata(pngBytes, SENTENCE_METADATA_KEY);
         }
 
         function isBinaryInk(data, offset, threshold = BINARY_INK_THRESHOLD) {
@@ -4482,7 +4747,11 @@
                 );
                 const columns = mergeProjectionBands(
                     rawColumns,
-                    () => Math.max(3, Math.round(rowHeight * 0.22))
+                    () => Math.max(
+                        4,
+                        Math.round(rowHeight * 0.22),
+                        Math.round(maskData.width * 0.0065)
+                    )
                 );
 
                 columns.forEach(column => {
@@ -4634,6 +4903,7 @@
                         type: 'word',
                         value: `nierozpoznany${unknownNumber}`,
                         entry: null,
+                        candidateEntry: glyphMatch ? glyphMatch.entry : null,
                         score: glyphMatch ? glyphMatch.score : 0,
                         margin: glyphMatch ? glyphMatch.margin : 0,
                         confidence: 'unknown',
@@ -4723,6 +4993,7 @@
                         type: 'word',
                         value: `nierozpoznany${unknownNumber}`,
                         entry: null,
+                        candidateEntry: glyphMatch ? glyphMatch.entry : null,
                         score: glyphMatch ? glyphMatch.score : 0,
                         margin: glyphMatch ? glyphMatch.margin : 0,
                         confidence: 'unknown',
@@ -4905,6 +5176,827 @@
         }
 
         // =====================================================
+        // ==================== DOCUMENT CODEC ==================
+        // =====================================================
+
+        const DOCUMENT_FORMAT = 'JOS-DOCUMENT';
+        const DOCUMENT_FORMAT_VERSION = 2;
+        const DOCUMENT_METADATA_KEY = 'JODocument';
+        const DOCUMENT_MAX_CHARACTERS = 250000;
+        const DOCUMENT_MAX_TOKENS = 20000;
+        const DOCUMENT_MAX_PAGES = 250;
+        const DOCUMENT_MAX_FILE_SIZE = 100 * 1024 * 1024;
+        const DOCUMENT_MAX_ARCHIVE_SIZE = 200 * 1024 * 1024;
+        const DOCUMENT_PAGE_WIDTH = 1200;
+        const DOCUMENT_PAGE_HEIGHT = 1600;
+        const DOCUMENT_PAGE_MARGIN = 70;
+        const DOCUMENT_GLYPH_SIZE = 96;
+        const DOCUMENT_LINE_HEIGHT = 140;
+        const DOCUMENT_WORD_GAP = 18;
+        const DOCUMENT_PUNCTUATION_GAP = 4;
+
+        function setDocumentStatus(message, type = '') {
+            documentStatus.textContent = message;
+            documentStatus.className = `document-status${type ? ` ${type}` : ''}`;
+        }
+
+        function tokenizeDocumentText(text) {
+            return String(text ?? '').match(
+                /\r\n|\r|\n|[\p{L}\p{N}]+(?:[’'][\p{L}\p{N}]+)*|[^\s]/gu
+            ) || [];
+        }
+
+        function buildDocumentModel(text, sourceName = 'dokument.txt') {
+            const rawText = String(text ?? '');
+            const tokens = tokenizeDocumentText(rawText).map((raw, index) => {
+                if (/^(?:\r\n|\r|\n)$/.test(raw)) {
+                    return { type: 'break', raw: '\n', index };
+                }
+                if (!isSentenceWordToken(raw)) {
+                    return { type: 'punctuation', raw, index };
+                }
+                return {
+                    type: 'word',
+                    raw,
+                    key: normalizeDictionaryKey(raw),
+                    index,
+                    // findWord normalizuje zapis do małych liter, więc DOM, Dom
+                    // i dom korzystają z tego samego glifu.
+                    entry: findWord(db, raw) || null,
+                };
+            });
+            return { rawText, sourceName, tokens };
+        }
+
+        function getDocumentStats(model) {
+            const words = model.tokens.filter(token => token.type === 'word');
+            const missingByKey = new Map();
+            words.forEach(token => {
+                if (!token.entry && !missingByKey.has(token.key)) {
+                    missingByKey.set(token.key, token.raw);
+                }
+            });
+            return {
+                wordCount: words.length,
+                knownCount: words.filter(token => token.entry).length,
+                elementCount: model.tokens.filter(token => token.type !== 'break').length,
+                missingWords: [...missingByKey.values()],
+            };
+        }
+
+        function updateDocumentCounter() {
+            const text = documentInput.value;
+            const tokens = tokenizeDocumentText(text);
+            const words = tokens.filter(isSentenceWordToken).length;
+            documentCounter.textContent = `${text.length.toLocaleString('pl-PL')} znaków // ${words.toLocaleString('pl-PL')} słów`;
+        }
+
+        function layoutDocumentPages(model) {
+            const closing = new Set(['.', ',', '!', '?', ';', ':', '…', ')', ']', '}', '”', '»']);
+            const opening = new Set(['(', '[', '{', '„', '«']);
+            const joining = new Set(['-', '–', '—', '/']);
+            const punctuationWidth = token => Math.max(24, [...token.raw].length * 30);
+            const itemWidth = token => token.type === 'word' ? DOCUMENT_GLYPH_SIZE : punctuationWidth(token);
+            const gapBefore = (token, previous) => {
+                if (!previous) return 0;
+                if (token.type === 'punctuation' && closing.has(token.raw)) return 0;
+                if (token.type === 'punctuation' && joining.has(token.raw)) return DOCUMENT_PUNCTUATION_GAP;
+                if (previous.type === 'punctuation' && (opening.has(previous.raw) || joining.has(previous.raw))) {
+                    return DOCUMENT_PUNCTUATION_GAP;
+                }
+                return DOCUMENT_WORD_GAP;
+            };
+
+            const pages = [[]];
+            let pageIndex = 0;
+            let cursorX = DOCUMENT_PAGE_MARGIN;
+            let cursorY = DOCUMENT_PAGE_MARGIN;
+            let previous = null;
+
+            const startNewPage = () => {
+                pages.push([]);
+                pageIndex++;
+                cursorX = DOCUMENT_PAGE_MARGIN;
+                cursorY = DOCUMENT_PAGE_MARGIN;
+                previous = null;
+            };
+
+            const startNewLine = () => {
+                cursorX = DOCUMENT_PAGE_MARGIN;
+                cursorY += DOCUMENT_LINE_HEIGHT;
+                previous = null;
+                if (cursorY + DOCUMENT_GLYPH_SIZE > DOCUMENT_PAGE_HEIGHT - DOCUMENT_PAGE_MARGIN) {
+                    startNewPage();
+                }
+            };
+
+            model.tokens.forEach((token, tokenIndex) => {
+                if (token.type === 'break') {
+                    startNewLine();
+                    return;
+                }
+
+                const width = itemWidth(token);
+                let gap = gapBefore(token, previous);
+                const next = model.tokens[tokenIndex + 1];
+                const closingWidth = token.type === 'word' && next?.type === 'punctuation' && closing.has(next.raw)
+                    ? itemWidth(next)
+                    : 0;
+                if (
+                    cursorX + gap + width + closingWidth > DOCUMENT_PAGE_WIDTH - DOCUMENT_PAGE_MARGIN &&
+                    cursorX > DOCUMENT_PAGE_MARGIN
+                ) {
+                    startNewLine();
+                    gap = 0;
+                }
+
+                cursorX += gap;
+                pages[pageIndex].push({ token, tokenIndex, x: cursorX, y: cursorY, width });
+                cursorX += width;
+                previous = token;
+            });
+
+            // Nie eksportuj pustej strony końcowej utworzonej przez znak nowego wiersza.
+            while (pages.length > 1 && pages[pages.length - 1].length === 0) pages.pop();
+            return pages;
+        }
+
+        function createDocumentPageCanvas(positions) {
+            const canvas = document.createElement('canvas');
+            canvas.width = DOCUMENT_PAGE_WIDTH;
+            canvas.height = DOCUMENT_PAGE_HEIGHT;
+            const ctx = canvas.getContext('2d');
+            paintExportPaper(ctx, canvas.width, canvas.height);
+
+            positions.forEach(({ token, x, y, width }) => {
+                if (token.type === 'punctuation') {
+                    ctx.fillStyle = '#18352e';
+                    ctx.font = '700 54px Georgia, serif';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'alphabetic';
+                    ctx.fillText(token.raw, x + width / 2, y + DOCUMENT_GLYPH_SIZE * 0.78);
+                    return;
+                }
+
+                if (token.entry) {
+                    const glyphCanvas = createFontGlyphCanvas(getEntryGlyph(token.entry), 220);
+                    ctx.drawImage(glyphCanvas, x, y, DOCUMENT_GLYPH_SIZE, DOCUMENT_GLYPH_SIZE);
+                } else {
+                    ctx.fillStyle = '#a94f4f';
+                    ctx.font = '700 54px Georgia, serif';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText('?', x + DOCUMENT_GLYPH_SIZE / 2, y + DOCUMENT_GLYPH_SIZE / 2);
+                }
+            });
+            return canvas;
+        }
+
+        function showDocumentPreview(sourceCanvas) {
+            documentPreviewCanvas.width = sourceCanvas.width;
+            documentPreviewCanvas.height = sourceCanvas.height;
+            const ctx = documentPreviewCanvas.getContext('2d');
+            ctx.clearRect(0, 0, sourceCanvas.width, sourceCanvas.height);
+            ctx.drawImage(sourceCanvas, 0, 0);
+            documentPreviewCanvas.hidden = false;
+            documentPreviewEmpty.hidden = true;
+        }
+
+        function documentTextChecksum(text) {
+            return calculateCrc32(new TextEncoder().encode(text))
+                .toString(16)
+                .padStart(8, '0');
+        }
+
+        function triggerBlobDownload(blob, fileName) {
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = fileName;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 2000);
+        }
+
+        function documentArchiveName(sourceName) {
+            const base = String(sourceName || 'dokument')
+                .replace(/\.[^.]+$/, '')
+                .trim() || 'dokument';
+            return `${sanitizeFileName(base)}-${formatLocalDate()}.glyphdoc`;
+        }
+
+        function sanitizeOriginalFileName(value) {
+            return String(value || 'oryginal.bin')
+                .replace(/[\\/:*?"<>|\u0000-\u001f]/g, '_')
+                .slice(0, 180) || 'oryginal.bin';
+        }
+
+        function getDocumentPageText(positions) {
+            const rows = new Map();
+            positions.forEach(position => {
+                const key = position.y;
+                if (!rows.has(key)) rows.set(key, []);
+                rows.get(key).push(position.token);
+            });
+            return [...rows.entries()]
+                .sort((left, right) => left[0] - right[0])
+                .map(([, tokens]) => binaryTokensToText(tokens.map(token => ({
+                    type: token.type,
+                    value: token.raw,
+                }))))
+                .join('\n');
+        }
+
+        async function encodeDocumentFromInput() {
+            const text = documentInput.value;
+            if (!text.trim()) {
+                setDocumentStatus('Wpisz treść albo wczytaj dokument tekstowy.', 'warning');
+                documentInput.focus();
+                return;
+            }
+            if (text.length > DOCUMENT_MAX_CHARACTERS) {
+                setDocumentStatus(`Dokument przekracza limit ${DOCUMENT_MAX_CHARACTERS.toLocaleString('pl-PL')} znaków.`, 'warning');
+                return;
+            }
+
+            const model = buildDocumentModel(text, currentDocumentSourceName);
+            const stats = getDocumentStats(model);
+            if (stats.elementCount > DOCUMENT_MAX_TOKENS) {
+                setDocumentStatus(`Dokument ma ${stats.elementCount.toLocaleString('pl-PL')} elementów. Limit wynosi ${DOCUMENT_MAX_TOKENS.toLocaleString('pl-PL')}.`, 'warning');
+                return;
+            }
+            if (stats.wordCount === 0) {
+                setDocumentStatus('Dokument nie zawiera słów możliwych do zakodowania.', 'warning');
+                return;
+            }
+            if (stats.missingWords.length > 0) {
+                const preview = stats.missingWords.slice(0, 14).join(', ');
+                const suffix = stats.missingWords.length > 14 ? '…' : '';
+                setDocumentStatus(`Brak glifów dla ${stats.missingWords.length} słów: ${preview}${suffix}`, 'warning');
+                return;
+            }
+
+            const originalLabel = documentEncode.textContent;
+            documentEncode.disabled = true;
+            documentDownload.disabled = true;
+            documentEncode.textContent = 'Kodowanie…';
+            currentEncodedDocument = null;
+
+            try {
+                const pages = layoutDocumentPages(model);
+                if (pages.length > DOCUMENT_MAX_PAGES) {
+                    throw new Error(`Dokument wymaga ${pages.length} stron. Limit wynosi ${DOCUMENT_MAX_PAGES}.`);
+                }
+                const checksum = documentTextChecksum(text);
+                const files = [];
+                const pageManifest = [];
+
+                for (let index = 0; index < pages.length; index++) {
+                    setDocumentStatus(`Tworzenie strony ${index + 1}/${pages.length}…`);
+                    const canvas = createDocumentPageCanvas(pages[index]);
+                    if (index === 0) showDocumentPreview(canvas);
+                    const rawPng = await canvasToPngBytes(canvas);
+                    const fileName = `strona-${String(index + 1).padStart(3, '0')}.png`;
+                    const payload = {
+                        format: DOCUMENT_FORMAT,
+                        formatVersion: DOCUMENT_FORMAT_VERSION,
+                        encoding: 'UTF-8',
+                        matching: 'case-insensitive-pl',
+                        createdAt: new Date().toISOString(),
+                        originalFileName: model.sourceName,
+                        checksum,
+                        // Pełna treść znajduje się zawsze na pierwszej stronie.
+                        // Przy mniejszych dokumentach pozostaje też na każdej stronie
+                        // dla zgodności z wersją 1 formatu.
+                        text: index === 0 || text.length <= 60000 ? text : null,
+                        pageText: getDocumentPageText(pages[index]),
+                        page: index + 1,
+                        pageCount: pages.length,
+                    };
+                    files.push({
+                        name: fileName,
+                        data: addPngTextMetadata(rawPng, DOCUMENT_METADATA_KEY, payload),
+                    });
+                    const tokenIndexes = pages[index].map(position => position.tokenIndex);
+                    pageManifest.push({
+                        file: fileName,
+                        page: index + 1,
+                        symbols: pages[index].length,
+                        firstToken: tokenIndexes.length ? Math.min(...tokenIndexes) : null,
+                        lastToken: tokenIndexes.length ? Math.max(...tokenIndexes) : null,
+                    });
+                    await new Promise(resolve => setTimeout(resolve, 0));
+                }
+
+                let originalFile = null;
+                if (currentDocumentOriginalFile?.bytes) {
+                    const originalName = sanitizeOriginalFileName(currentDocumentOriginalFile.name);
+                    const archivePath = `original/${originalName}`;
+                    files.push({ name: archivePath, data: currentDocumentOriginalFile.bytes });
+                    originalFile = {
+                        file: archivePath,
+                        name: originalName,
+                        mimeType: currentDocumentOriginalFile.mimeType || 'application/octet-stream',
+                        size: currentDocumentOriginalFile.bytes.length,
+                        checksum: calculateCrc32(currentDocumentOriginalFile.bytes).toString(16).padStart(8, '0'),
+                    };
+                }
+
+                const manifest = {
+                    format: DOCUMENT_FORMAT,
+                    formatVersion: DOCUMENT_FORMAT_VERSION,
+                    encoding: 'UTF-8',
+                    matching: 'case-insensitive-pl',
+                    createdAt: new Date().toISOString(),
+                    originalFileName: model.sourceName,
+                    checksum,
+                    text,
+                    originalFile,
+                    statistics: {
+                        characters: text.length,
+                        words: stats.wordCount,
+                        elements: stats.elementCount,
+                        pages: pages.length,
+                    },
+                    pages: pageManifest,
+                };
+                files.push({
+                    name: 'document.json',
+                    data: new TextEncoder().encode(JSON.stringify(manifest, null, 2)),
+                });
+
+                const blob = createZipBlob(files);
+                currentEncodedDocument = {
+                    blob,
+                    fileName: documentArchiveName(model.sourceName),
+                    manifest,
+                };
+                documentDownload.disabled = false;
+                currentDecodedDocumentText = text;
+                documentDownloadText.disabled = false;
+                currentDecodedOriginalFile = currentDocumentOriginalFile;
+                documentDownloadOriginal.disabled = !currentDecodedOriginalFile;
+                setDocumentStatus(
+                    `Zakodowano ${stats.wordCount.toLocaleString('pl-PL')} słów na ${pages.length} ${pages.length === 1 ? 'stronie' : 'stronach'}.${originalFile ? ' Dołączono plik źródłowy.' : ''} Wielkość liter nie wpływa na dobór glifów.`,
+                    'success'
+                );
+            } catch (error) {
+                console.error('Błąd kodowania dokumentu:', error);
+                setDocumentStatus(`Nie udało się zakodować dokumentu: ${error.message}`, 'warning');
+            } finally {
+                documentEncode.disabled = false;
+                documentEncode.textContent = originalLabel;
+            }
+        }
+
+        function downloadEncodedDocument() {
+            if (!currentEncodedDocument) {
+                setDocumentStatus('Najpierw zakoduj dokument.', 'warning');
+                return;
+            }
+            triggerBlobDownload(currentEncodedDocument.blob, currentEncodedDocument.fileName);
+            setDocumentStatus(`Pobrano ${currentEncodedDocument.fileName}.`, 'success');
+        }
+
+        function normalizeExtractedDocumentText(text) {
+            return String(text ?? '')
+                .replace(/\u00a0/g, ' ')
+                .replace(/\r\n?/g, '\n')
+                .split('\n')
+                .map(line => line.replace(/[ \t]+/g, ' ').trim())
+                .join('\n')
+                .replace(/\n{3,}/g, '\n\n')
+                .trim();
+        }
+
+        function extractTextFromHtml(html) {
+            const parsed = new DOMParser().parseFromString(String(html ?? ''), 'text/html');
+            parsed.querySelectorAll('script, style, noscript, template, svg, canvas').forEach(node => node.remove());
+            const blocks = new Set([
+                'ADDRESS', 'ARTICLE', 'ASIDE', 'BLOCKQUOTE', 'DIV', 'DL', 'FIELDSET', 'FIGCAPTION',
+                'FIGURE', 'FOOTER', 'FORM', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'HEADER',
+                'HR', 'LI', 'MAIN', 'NAV', 'OL', 'P', 'PRE', 'SECTION', 'TABLE', 'TR', 'UL'
+            ]);
+            const output = [];
+            const newline = () => {
+                if (output.length > 0 && output[output.length - 1] !== '\n') output.push('\n');
+            };
+            const walk = node => {
+                if (node.nodeType === Node.TEXT_NODE) {
+                    output.push(node.nodeValue || '');
+                    return;
+                }
+                if (node.nodeType !== Node.ELEMENT_NODE) return;
+                const tag = node.tagName;
+                if (tag === 'BR') {
+                    newline();
+                    return;
+                }
+                if (blocks.has(tag)) newline();
+                node.childNodes.forEach(walk);
+                if (tag === 'TD' || tag === 'TH') output.push('\t');
+                if (blocks.has(tag)) newline();
+            };
+            walk(parsed.body || parsed.documentElement);
+            return normalizeExtractedDocumentText(output.join(''));
+        }
+
+        function extractTextFromOfficeXml(xml, type) {
+            const parsed = new DOMParser().parseFromString(xml, 'application/xml');
+            if (parsed.querySelector('parsererror')) throw new Error('Dokument zawiera nieprawidłowy XML.');
+            const output = [];
+            const walk = node => {
+                if (node.nodeType !== Node.ELEMENT_NODE) return;
+                const name = node.localName;
+
+                if (name === 't') {
+                    output.push(node.textContent || '');
+                    return;
+                }
+                if (name === 'tab') {
+                    output.push('\t');
+                    return;
+                }
+                if (name === 'br' || name === 'cr' || name === 'line-break') {
+                    output.push('\n');
+                    return;
+                }
+                if (type === 'odt' && name === 's') {
+                    const count = Number(node.getAttribute('text:c') || node.getAttribute('c') || 1);
+                    output.push(' '.repeat(Math.max(1, Math.min(100, count))));
+                    return;
+                }
+
+                node.childNodes.forEach(walk);
+                if (name === 'p' || name === 'h' || name === 'list-item') output.push('\n');
+                if (name === 'tc' || name === 'table-cell') output.push('\t');
+                if (name === 'tr' || name === 'table-row') output.push('\n');
+            };
+
+            const root = type === 'odt'
+                ? (parsed.getElementsByTagNameNS('urn:oasis:names:tc:opendocument:xmlns:office:1.0', 'text')[0] || parsed.documentElement)
+                : parsed.documentElement;
+            walk(root);
+            return normalizeExtractedDocumentText(output.join(''));
+        }
+
+        async function extractTextFromDocx(bytes) {
+            if (!globalThis.JSZip) throw new Error('Moduł DOCX nie został załadowany. Odśwież aplikację.');
+            const zip = await globalThis.JSZip.loadAsync(bytes);
+            const main = zip.file('word/document.xml');
+            if (!main) throw new Error('Plik nie zawiera dokumentu Word.');
+            const parts = [extractTextFromOfficeXml(await main.async('string'), 'docx')];
+            const extras = Object.keys(zip.files)
+                .filter(name => /^word\/(?:header|footer|footnotes|endnotes)\d*\.xml$/i.test(name))
+                .sort();
+            for (const name of extras) {
+                const text = extractTextFromOfficeXml(await zip.file(name).async('string'), 'docx');
+                if (text) parts.push(text);
+            }
+            return normalizeExtractedDocumentText(parts.filter(Boolean).join('\n\n'));
+        }
+
+        async function extractTextFromOdt(bytes) {
+            if (!globalThis.JSZip) throw new Error('Moduł ODT nie został załadowany. Odśwież aplikację.');
+            const zip = await globalThis.JSZip.loadAsync(bytes);
+            const content = zip.file('content.xml');
+            if (!content) throw new Error('Plik nie zawiera dokumentu OpenDocument.');
+            return extractTextFromOfficeXml(await content.async('string'), 'odt');
+        }
+
+        let pdfJsModulePromise = null;
+
+        async function getPdfJsModule() {
+            if (!pdfJsModulePromise) {
+                // PDF.js 5 korzysta z nowej metody Uint8Array#toHex.
+                // Polyfill utrzymuje obsługę starszych wersji Safari/Chrome.
+                if (typeof Uint8Array.prototype.toHex !== 'function') {
+                    Object.defineProperty(Uint8Array.prototype, 'toHex', {
+                        configurable: true,
+                        value() {
+                            return Array.from(this, byte => byte.toString(16).padStart(2, '0')).join('');
+                        },
+                    });
+                }
+                pdfJsModulePromise = import('./vendor/pdf.mjs').then(module => {
+                    module.GlobalWorkerOptions.workerSrc = new URL('./vendor/pdf.worker.mjs', document.baseURI).href;
+                    return module;
+                });
+            }
+            return pdfJsModulePromise;
+        }
+
+        async function extractTextFromPdf(bytes) {
+            const pdfjs = await getPdfJsModule();
+            // Kopia zapobiega odłączeniu bufora pliku źródłowego po przekazaniu go workerowi.
+            const loadingTask = pdfjs.getDocument({ data: bytes.slice() });
+            const pdf = await loadingTask.promise;
+            const pages = [];
+            try {
+                for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
+                    setDocumentStatus(`Odczytywanie tekstu PDF: strona ${pageNumber}/${pdf.numPages}…`);
+                    const page = await pdf.getPage(pageNumber);
+                    const content = await page.getTextContent();
+                    const parts = [];
+                    content.items.forEach(item => {
+                        if (!item || typeof item.str !== 'string') return;
+                        parts.push(item.str);
+                        parts.push(item.hasEOL ? '\n' : ' ');
+                    });
+                    pages.push(normalizeExtractedDocumentText(parts.join('')));
+                }
+            } finally {
+                await pdf.destroy();
+            }
+            const text = normalizeExtractedDocumentText(pages.filter(Boolean).join('\n\n'));
+            if (!text) {
+                throw new Error('PDF nie ma warstwy tekstowej. Skanowany dokument wymaga modułu OCR.');
+            }
+            return text;
+        }
+
+        async function extractTextFromDocumentFile(file, bytes) {
+            const extension = (file.name.match(/\.([^.]+)$/)?.[1] || '').toLocaleLowerCase('pl-PL');
+            if (extension === 'doc') {
+                throw new Error('Stary format DOC nie jest obsługiwany. Otwórz go w Wordzie lub LibreOffice i zapisz jako DOCX.');
+            }
+            if (extension === 'docx') return extractTextFromDocx(bytes);
+            if (extension === 'odt') return extractTextFromOdt(bytes);
+            if (extension === 'pdf' || file.type === 'application/pdf') return extractTextFromPdf(bytes);
+            const decoded = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+            if (extension === 'html' || extension === 'htm' || file.type === 'text/html') {
+                return extractTextFromHtml(decoded);
+            }
+            return decoded.replace(/\r\n?/g, '\n');
+        }
+
+        async function loadDocumentSourceFile(file) {
+            if (!file) return;
+            if (file.size > DOCUMENT_MAX_FILE_SIZE) {
+                setDocumentStatus('Plik źródłowy jest zbyt duży. Maksymalny rozmiar to 100 MB.', 'warning');
+                return;
+            }
+            const originalLabel = documentLoadSource.textContent;
+            documentLoadSource.disabled = true;
+            documentLoadSource.textContent = 'Wczytywanie…';
+            try {
+                const bytes = new Uint8Array(await file.arrayBuffer());
+                const text = await extractTextFromDocumentFile(file, bytes);
+                if (text.length > DOCUMENT_MAX_CHARACTERS) {
+                    throw new Error(`Treść przekracza limit ${DOCUMENT_MAX_CHARACTERS.toLocaleString('pl-PL')} znaków.`);
+                }
+                if (!text.trim()) throw new Error('Nie znaleziono tekstu możliwego do zakodowania.');
+                documentInput.value = text;
+                currentDocumentSourceName = file.name || 'dokument.txt';
+                clearDocumentCodecState();
+                currentDocumentOriginalFile = {
+                    name: currentDocumentSourceName,
+                    mimeType: file.type || 'application/octet-stream',
+                    bytes,
+                };
+                updateDocumentCounter();
+                setDocumentStatus(`Wczytano ${currentDocumentSourceName}. Wyodrębniono ${text.length.toLocaleString('pl-PL')} znaków. Kliknij „Zakoduj dokument”.`, 'success');
+            } catch (error) {
+                console.error('Błąd wczytywania dokumentu:', error);
+                setDocumentStatus(`Nie udało się wczytać dokumentu: ${error.message}`, 'warning');
+            } finally {
+                documentLoadSource.disabled = false;
+                documentLoadSource.textContent = originalLabel;
+            }
+        }
+
+        function extractStoredZipEntries(bytes) {
+            const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+            const decoder = new TextDecoder();
+            const entries = new Map();
+            let offset = 0;
+            let totalSize = 0;
+
+            while (offset + 4 <= bytes.length) {
+                const signature = view.getUint32(offset, true);
+                if (signature === 0x02014b50 || signature === 0x06054b50) break;
+                if (signature !== 0x04034b50 || offset + 30 > bytes.length) {
+                    throw new Error('Nieprawidłowa struktura pliku GLYPHDOC.');
+                }
+
+                const flags = view.getUint16(offset + 6, true);
+                const method = view.getUint16(offset + 8, true);
+                const expectedCrc = view.getUint32(offset + 14, true);
+                const compressedSize = view.getUint32(offset + 18, true);
+                const uncompressedSize = view.getUint32(offset + 22, true);
+                const nameLength = view.getUint16(offset + 26, true);
+                const extraLength = view.getUint16(offset + 28, true);
+                if ((flags & 0x0001) !== 0) throw new Error('Zaszyfrowane archiwa ZIP nie są obsługiwane.');
+                if ((flags & 0x0008) !== 0) throw new Error('Ten wariant archiwum ZIP nie jest obsługiwany.');
+                if (method !== 0 || compressedSize !== uncompressedSize) {
+                    throw new Error('GLYPHDOC musi używać zapisu ZIP bez kompresji.');
+                }
+
+                const nameStart = offset + 30;
+                const dataStart = nameStart + nameLength + extraLength;
+                const dataEnd = dataStart + compressedSize;
+                if (dataEnd > bytes.length) throw new Error('Plik GLYPHDOC jest ucięty.');
+                const name = decoder.decode(bytes.slice(nameStart, nameStart + nameLength));
+                const data = bytes.slice(dataStart, dataEnd);
+                if (calculateCrc32(data) !== expectedCrc) {
+                    throw new Error(`Uszkodzone dane w pliku ${name}.`);
+                }
+                entries.set(name, data);
+                totalSize += data.length;
+                if (entries.size > 512 || totalSize > DOCUMENT_MAX_ARCHIVE_SIZE) {
+                    throw new Error('Archiwum zawiera zbyt dużo danych.');
+                }
+                offset = dataEnd;
+            }
+            if (entries.size === 0) throw new Error('Archiwum nie zawiera dokumentu.');
+            return entries;
+        }
+
+        function validateDocumentPayload(payload, allowPageText = false) {
+            const hasFullText = payload && typeof payload.text === 'string';
+            const hasPageText = payload && typeof payload.pageText === 'string';
+            if (!payload || payload.format !== DOCUMENT_FORMAT || (!hasFullText && !(allowPageText && hasPageText))) {
+                throw new Error('Plik nie zawiera dokumentu Języka Obrazowego.');
+            }
+            const decodedText = hasFullText ? payload.text : payload.pageText;
+            if (decodedText.length > DOCUMENT_MAX_CHARACTERS) {
+                throw new Error('Odkodowany dokument przekracza dozwolony limit.');
+            }
+            if (hasFullText && payload.checksum && documentTextChecksum(payload.text) !== payload.checksum) {
+                throw new Error('Suma kontrolna dokumentu jest nieprawidłowa.');
+            }
+            return payload;
+        }
+
+        async function previewDocumentPngBytes(pngBytes) {
+            const blob = new Blob([pngBytes], { type: 'image/png' });
+            const canvas = await imageFileToCanvas(blob);
+            showDocumentPreview(canvas);
+        }
+
+        async function recognizeDocumentPagesVisually(pageEntries) {
+            const parts = [];
+            let suggestions = 0;
+            let unresolved = 0;
+            for (let index = 0; index < pageEntries.length; index++) {
+                setDocumentStatus(`Rozpoznawanie obrazu strony ${index + 1}/${pageEntries.length}…`);
+                const canvas = await imageFileToCanvas(new Blob([pageEntries[index][1]], { type: 'image/png' }));
+                const result = await recognizeSentenceByBinaryMap(canvas);
+                const resolvedTokens = result.detected.map(token => {
+                    if (token.type !== 'word' || token.entry) return token;
+                    if (token.candidateEntry && token.score >= 0.90) {
+                        suggestions++;
+                        return {
+                            ...token,
+                            value: token.candidateEntry.word,
+                            entry: token.candidateEntry,
+                            confidence: 'low',
+                        };
+                    }
+                    unresolved++;
+                    return token;
+                });
+                parts.push(binaryTokensToText(resolvedTokens));
+                if (index === 0) showDocumentPreview(canvas);
+            }
+            return { text: parts.join('\n'), suggestions, unresolved };
+        }
+
+        async function decodeDocumentFile(file) {
+            if (!file) return;
+            if (file.size > DOCUMENT_MAX_ARCHIVE_SIZE) {
+                setDocumentStatus('Plik jest zbyt duży. Maksymalny rozmiar dokumentu GLYPHDOC to 200 MB.', 'warning');
+                return;
+            }
+
+            const originalLabel = documentDecode.textContent;
+            documentDecode.disabled = true;
+            documentDecode.textContent = 'Dekodowanie…';
+            try {
+                const bytes = new Uint8Array(await file.arrayBuffer());
+                const pngSignature = [137, 80, 78, 71, 13, 10, 26, 10];
+                const isPng = bytes.length >= 8 && pngSignature.every((value, index) => bytes[index] === value);
+                let payload = null;
+                let decodedText = '';
+                let exact = false;
+                let pageCount = 1;
+                let visualInfo = null;
+
+                if (isPng) {
+                    payload = extractPngTextMetadata(bytes, DOCUMENT_METADATA_KEY);
+                    if (payload) {
+                        validateDocumentPayload(payload, true);
+                        decodedText = typeof payload.text === 'string' ? payload.text : payload.pageText;
+                        exact = typeof payload.text === 'string';
+                        pageCount = exact ? (payload.pageCount || 1) : 1;
+                    } else {
+                        setDocumentStatus('Brak metadanych — uruchamiam rozpoznawanie map binarnych…');
+                        visualInfo = await recognizeDocumentPagesVisually([['strona.png', bytes]]);
+                        decodedText = visualInfo.text;
+                    }
+                    await previewDocumentPngBytes(bytes);
+                } else {
+                    const entries = extractStoredZipEntries(bytes);
+                    const manifestBytes = entries.get('document.json');
+                    if (manifestBytes) {
+                        payload = JSON.parse(new TextDecoder().decode(manifestBytes));
+                        validateDocumentPayload(payload);
+                        decodedText = payload.text;
+                        exact = true;
+                        pageCount = Array.isArray(payload.pages) ? payload.pages.length : 1;
+                        const firstPageName = payload.pages?.[0]?.file;
+                        if (firstPageName && entries.has(firstPageName)) {
+                            await previewDocumentPngBytes(entries.get(firstPageName));
+                        }
+                        const originalInfo = payload.originalFile;
+                        if (originalInfo?.file && entries.has(originalInfo.file)) {
+                            const originalBytes = entries.get(originalInfo.file);
+                            const checksum = calculateCrc32(originalBytes).toString(16).padStart(8, '0');
+                            if (originalInfo.checksum && checksum !== originalInfo.checksum) {
+                                throw new Error('Suma kontrolna oryginalnego pliku jest nieprawidłowa.');
+                            }
+                            currentDecodedOriginalFile = {
+                                name: originalInfo.name || 'oryginal.bin',
+                                mimeType: originalInfo.mimeType || 'application/octet-stream',
+                                bytes: originalBytes,
+                            };
+                        } else {
+                            currentDecodedOriginalFile = null;
+                        }
+                    } else {
+                        const pageEntries = [...entries.entries()]
+                            .filter(([name]) => /\.png$/i.test(name))
+                            .sort((left, right) => left[0].localeCompare(right[0], 'pl'));
+                        if (pageEntries.length === 0) throw new Error('Archiwum nie zawiera stron PNG.');
+                        visualInfo = await recognizeDocumentPagesVisually(pageEntries);
+                        decodedText = visualInfo.text;
+                        pageCount = pageEntries.length;
+                    }
+                }
+
+                documentInput.value = decodedText;
+                currentDecodedDocumentText = decodedText;
+                currentDocumentSourceName = payload?.originalFileName || 'odkodowany-dokument.txt';
+                if (!exact || isPng) currentDecodedOriginalFile = null;
+                currentDocumentOriginalFile = currentDecodedOriginalFile;
+                currentEncodedDocument = null;
+                documentDownload.disabled = true;
+                documentDownloadText.disabled = false;
+                documentDownloadOriginal.disabled = !currentDecodedOriginalFile;
+                updateDocumentCounter();
+                setDocumentStatus(
+                    exact
+                        ? `Odkodowano dokładną treść dokumentu (${pageCount} ${pageCount === 1 ? 'strona' : 'stron'}). Zachowano wielkość liter, akapity i polskie znaki.${currentDecodedOriginalFile ? ' Oryginalny plik jest gotowy do pobrania.' : ''}`
+                        : `Odczytano ${pageCount} ${pageCount === 1 ? 'stronę' : 'stron'} z obrazu. Wielkość liter nie wpływała na dopasowanie. ${visualInfo?.suggestions || 0} niejednoznacznych znaków uzupełniono najlepszym wynikiem, ${visualInfo?.unresolved || 0} pozostało nierozpoznanych — sprawdź tekst.`,
+                    exact ? 'success' : 'warning'
+                );
+            } catch (error) {
+                console.error('Błąd dekodowania dokumentu:', error);
+                setDocumentStatus(`Nie udało się odkodować dokumentu: ${error.message}`, 'warning');
+            } finally {
+                documentDecode.disabled = false;
+                documentDecode.textContent = originalLabel;
+            }
+        }
+
+        function downloadDecodedDocumentText() {
+            if (!currentDecodedDocumentText) {
+                setDocumentStatus('Najpierw odkoduj albo zakoduj dokument.', 'warning');
+                return;
+            }
+            const base = String(currentDocumentSourceName || 'odkodowany-dokument')
+                .replace(/\.[^.]+$/, '') || 'odkodowany-dokument';
+            const blob = new Blob(['\ufeff', currentDecodedDocumentText], { type: 'text/plain;charset=utf-8' });
+            triggerBlobDownload(blob, `${sanitizeFileName(base)}-odkodowany.txt`);
+            setDocumentStatus('Pobrano odkodowany dokument TXT w kodowaniu UTF-8.', 'success');
+        }
+
+        function downloadDecodedOriginalFile() {
+            if (!currentDecodedOriginalFile?.bytes) {
+                setDocumentStatus('Ten dokument nie zawiera kopii pliku źródłowego.', 'warning');
+                return;
+            }
+            const blob = new Blob([currentDecodedOriginalFile.bytes], {
+                type: currentDecodedOriginalFile.mimeType || 'application/octet-stream',
+            });
+            triggerBlobDownload(blob, sanitizeOriginalFileName(currentDecodedOriginalFile.name));
+            setDocumentStatus(`Pobrano oryginalny plik ${currentDecodedOriginalFile.name}.`, 'success');
+        }
+
+        function clearDocumentCodecState() {
+            currentEncodedDocument = null;
+            currentDecodedDocumentText = '';
+            currentDocumentOriginalFile = null;
+            currentDecodedOriginalFile = null;
+            documentDownload.disabled = true;
+            documentDownloadText.disabled = true;
+            documentDownloadOriginal.disabled = true;
+            documentPreviewCanvas.hidden = true;
+            documentPreviewEmpty.hidden = false;
+        }
+
+        // =====================================================
         // ==================== RECOGNITION MODE ====================
         // =====================================================
 
@@ -4942,7 +6034,7 @@
                 recognitionFeedback.className = 'recognition-feedback incorrect';
                 return;
             }
-            if (guess.toLowerCase() === recognitionCurrentWord.toLowerCase()) {
+            if (normalizeDictionaryKey(guess) === normalizeDictionaryKey(recognitionCurrentWord)) {
                 recognitionFeedback.textContent = `✅ Poprawnie! To znak słowa "${recognitionCurrentWord}".`;
                 recognitionFeedback.className = 'recognition-feedback correct';
                 recognitionInput.value = '';
@@ -5073,6 +6165,30 @@
             setSentenceFeedback('Tekst zmieniono. Kliknij „Generuj zdanie”, aby odświeżyć znaki.');
         });
 
+        documentLoadSource.addEventListener('click', () => documentSourceFile.click());
+        documentSourceFile.addEventListener('change', (event) => {
+            if (event.target.files && event.target.files[0]) {
+                loadDocumentSourceFile(event.target.files[0]);
+                event.target.value = '';
+            }
+        });
+        documentEncode.addEventListener('click', encodeDocumentFromInput);
+        documentDownload.addEventListener('click', downloadEncodedDocument);
+        documentDecode.addEventListener('click', () => documentDecodeFile.click());
+        documentDecodeFile.addEventListener('change', (event) => {
+            if (event.target.files && event.target.files[0]) {
+                decodeDocumentFile(event.target.files[0]);
+                event.target.value = '';
+            }
+        });
+        documentDownloadText.addEventListener('click', downloadDecodedDocumentText);
+        documentDownloadOriginal.addEventListener('click', downloadDecodedOriginalFile);
+        documentInput.addEventListener('input', () => {
+            updateDocumentCounter();
+            clearDocumentCodecState();
+            setDocumentStatus('Treść zmieniono. Kliknij „Zakoduj dokument”, aby utworzyć nowy plik.');
+        });
+
         recognitionCheck.addEventListener('click', checkRecognitionGuess);
         recognitionRandom.addEventListener('click', showRandomGlyphForRecognition);
         recognitionInput.addEventListener('keydown', (e) => {
@@ -5102,6 +6218,7 @@
                 paintPaper(ctx, recognitionCanvas.width, recognitionCanvas.height);
                 recognitionFeedback.textContent = '';
                 clearSentenceMode();
+                clearDocumentCodecState();
                 setStatus('Baza została zresetowana.', 'info');
                 setTimeout(clearStatus, 2000);
             }
@@ -5127,6 +6244,8 @@
             // Ustaw początkowe tło canvasa rozpoznawania
             const ctx = recognitionCanvas.getContext('2d');
             paintPaper(ctx, recognitionCanvas.width, recognitionCanvas.height);
+
+            updateDocumentCounter();
 
             // Fokus na pole wejściowe
             wordInput.focus();
