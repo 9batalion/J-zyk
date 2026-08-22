@@ -1353,7 +1353,7 @@
         // Dzięki temu aktualizacja generatora nie zmienia samoczynnie znaków,
         // które użytkownik wcześniej wybrał i zapisał.
         const GLYPH_DATA_VERSION = 3;
-        const GENERATOR_VERSION = 5;
+        const GENERATOR_VERSION = 6;
         const GLYPH_TEMPLATE_COUNT = 32;
         const GLYPH_STRUCTURE_MODES = 5;
 
@@ -1367,9 +1367,9 @@
         }
 
         /**
-         * Generator V5: każdy znak ma zwarty szkielet, rozpoznawalną rodzinę
-         * konstrukcyjną i zbalansowane ozdobniki. Dzięki temu glify przypominają
-         * pojedyncze znaki z fotografii zamiast luźnego zbioru kresek.
+         * Generator V6: zwarty, kątowy szkielet oraz obowiązkowy moduł
+         * rozpoznawczy. Każdy znak ma przynajmniej pierścień, grupę kresek,
+         * kropki albo mały akcent, więc nie może być samotną przypadkową linią.
          */
         function generateGlyphStrokes(word, variantSeed = null) {
             const normalizedWord = word.trim().toLocaleLowerCase('pl-PL');
@@ -1381,17 +1381,17 @@
             const strokes = [];
             const width = 2.12 + rng() * 0.42;
 
-            const line = (a, b, customWidth = width) => ({
-                kind: 'line', points: [a, b], width: customWidth
+            const line = (a, b, customWidth = width, role = 'core') => ({
+                kind: 'line', points: [a, b], width: customWidth, role
             });
-            const path = (points, customWidth = width) => ({
-                kind: 'polyline', points, width: customWidth
+            const path = (points, customWidth = width, role = 'core') => ({
+                kind: 'polyline', points, width: customWidth, role
             });
             const ring = (center, radius = 0.025, customWidth = width * 0.92) => ({
-                kind: 'circle', center, radius, width: customWidth
+                kind: 'circle', center, radius, width: customWidth, role: 'marker'
             });
             const dot = (center, radius = 0.009) => ({
-                kind: 'dot', center, radius
+                kind: 'dot', center, radius, role: 'marker'
             });
             const curvePoints = (start, control, end, segments = 6) => {
                 const points = [];
@@ -1425,12 +1425,12 @@
                 { paths: [[[0.37,0.29],[0.37,0.57],[0.45,0.68],[0.58,0.66],[0.65,0.55]]], anchors: [[0.37,0.29],[0.45,0.68],[0.65,0.55]], bars: [0.62,0.39,'vertical'], branches: [[0.37,0.49,0.12,-0.05]] },
                 { paths: [[[0.35,0.66],[0.47,0.50],[0.35,0.34]], [[0.47,0.50],[0.67,0.51]]], anchors: [[0.35,0.66],[0.35,0.34],[0.67,0.51]], bars: [0.61,0.39,'horizontal'], branches: [[0.47,0.50,0.06,-0.13]] },
                 { paths: [[[0.35,0.29],[0.35,0.61],[0.49,0.69],[0.65,0.61],[0.65,0.35]]], anchors: [[0.35,0.29],[0.49,0.69],[0.65,0.35]], bars: [0.70,0.49,'vertical'], branches: [[0.49,0.69,0.11,0.06]] },
-                { paths: [curvePoints([0.36,0.29],[0.32,0.67],[0.55,0.67]), [[0.55,0.67],[0.67,0.55]]], anchors: [[0.36,0.29],[0.55,0.67],[0.67,0.55]], bars: [0.62,0.38,'diagUp'], branches: [[0.43,0.62,-0.10,-0.05]] },
+                { paths: [[[0.36,0.29],[0.34,0.48],[0.43,0.66],[0.56,0.67]], [[0.56,0.67],[0.68,0.55]]], anchors: [[0.36,0.29],[0.56,0.67],[0.68,0.55]], bars: [0.62,0.38,'diagUp'], branches: [[0.43,0.62,-0.10,-0.05]] },
                 { paths: [[[0.50,0.28],[0.68,0.47],[0.50,0.69],[0.33,0.50]], [[0.33,0.50],[0.42,0.40]]], anchors: [[0.50,0.28],[0.68,0.47],[0.50,0.69],[0.33,0.50]], bars: [0.67,0.63,'diagDown'], branches: [[0.50,0.69,0.10,0.02]] },
                 { paths: [[[0.33,0.69],[0.46,0.54],[0.58,0.37],[0.68,0.28]], [[0.46,0.54],[0.32,0.45]], [[0.58,0.37],[0.70,0.47]]], anchors: [[0.33,0.69],[0.68,0.28],[0.32,0.45],[0.70,0.47]], bars: [0.39,0.34,'diagUp'], branches: [[0.46,0.54,0.03,0.13]] },
                 { paths: [[[0.35,0.29],[0.35,0.65],[0.64,0.65]], [[0.48,0.65],[0.48,0.45],[0.67,0.31]]], anchors: [[0.35,0.29],[0.35,0.65],[0.64,0.65],[0.67,0.31]], bars: [0.62,0.46,'diagDown'], branches: [[0.48,0.53,0.12,0.01]] },
-                { paths: [curvePoints([0.38,0.28],[0.34,0.66],[0.52,0.69]), curvePoints([0.52,0.69],[0.66,0.69],[0.66,0.53])], anchors: [[0.38,0.28],[0.52,0.69],[0.66,0.53]], bars: [0.62,0.37,'vertical'], branches: [[0.42,0.58,-0.10,-0.01]] },
-                { paths: [curvePoints([0.35,0.33],[0.67,0.28],[0.52,0.50]), curvePoints([0.52,0.50],[0.36,0.72],[0.68,0.66])], anchors: [[0.35,0.33],[0.52,0.50],[0.68,0.66]], bars: [0.33,0.57,'diagUp'], branches: [[0.52,0.50,0.13,-0.02]] },
+                { paths: [[[0.38,0.28],[0.35,0.51],[0.44,0.68]], [[0.44,0.68],[0.56,0.69],[0.67,0.54]]], anchors: [[0.38,0.28],[0.44,0.68],[0.67,0.54]], bars: [0.62,0.37,'vertical'], branches: [[0.42,0.58,-0.10,-0.01]] },
+                { paths: [[[0.35,0.33],[0.55,0.30],[0.63,0.39],[0.52,0.50]], [[0.52,0.50],[0.39,0.61],[0.47,0.69],[0.68,0.66]]], anchors: [[0.35,0.33],[0.52,0.50],[0.68,0.66]], bars: [0.33,0.57,'diagUp'], branches: [[0.52,0.50,0.13,-0.02]] },
                 { paths: [[[0.37,0.28],[0.37,0.68]], [[0.37,0.43],[0.61,0.34]], [[0.37,0.56],[0.62,0.54]]], anchors: [[0.37,0.28],[0.37,0.68],[0.61,0.34],[0.62,0.54]], bars: [0.65,0.66,'diagDown'], branches: [[0.50,0.39,0.04,0.13]] },
                 { paths: [[[0.31,0.50],[0.49,0.32],[0.68,0.50],[0.49,0.68]], [[0.49,0.68],[0.39,0.58]]], anchors: [[0.31,0.50],[0.49,0.32],[0.68,0.50],[0.49,0.68]], bars: [0.68,0.35,'diagUp'], branches: [[0.68,0.50,-0.10,0.08]] },
                 { paths: [[[0.34,0.30],[0.50,0.50],[0.35,0.68]], [[0.50,0.50],[0.66,0.31],[0.67,0.66]]], anchors: [[0.34,0.30],[0.35,0.68],[0.66,0.31],[0.67,0.66]], bars: [0.29,0.49,'vertical'], branches: [[0.50,0.50,0.13,0.01]] },
@@ -1438,7 +1438,7 @@
                 { paths: [[[0.34,0.68],[0.50,0.29],[0.66,0.68]], [[0.40,0.55],[0.60,0.55]]], anchors: [[0.34,0.68],[0.50,0.29],[0.66,0.68]], bars: [0.70,0.44,'vertical'], branches: [[0.50,0.29,0.10,0.07]] },
                 { paths: [[[0.34,0.31],[0.48,0.49],[0.34,0.68],[0.53,0.68],[0.68,0.53]]], anchors: [[0.34,0.31],[0.48,0.49],[0.34,0.68],[0.68,0.53]], bars: [0.63,0.35,'diagDown'], branches: [[0.53,0.68,0.09,0.06]] },
                 { paths: [[[0.31,0.35],[0.48,0.49],[0.31,0.64]], [[0.48,0.49],[0.67,0.35],[0.67,0.64]]], anchors: [[0.31,0.35],[0.31,0.64],[0.67,0.35],[0.67,0.64]], bars: [0.51,0.68,'horizontal'], branches: [[0.48,0.49,0.02,-0.14]] },
-                { paths: [curvePoints([0.37,0.30],[0.65,0.29],[0.55,0.48]), curvePoints([0.55,0.48],[0.35,0.68],[0.64,0.68])], anchors: [[0.37,0.30],[0.55,0.48],[0.64,0.68]], bars: [0.33,0.55,'vertical'], branches: [[0.55,0.48,0.13,0.02]] },
+                { paths: [[[0.37,0.30],[0.58,0.31],[0.55,0.48]], [[0.55,0.48],[0.39,0.61],[0.48,0.68],[0.66,0.68]]], anchors: [[0.37,0.30],[0.55,0.48],[0.66,0.68]], bars: [0.33,0.55,'vertical'], branches: [[0.55,0.48,0.13,0.02]] },
                 { paths: [[[0.34,0.68],[0.34,0.31]], [[0.34,0.43],[0.55,0.43]], [[0.34,0.57],[0.65,0.57]]], anchors: [[0.34,0.68],[0.34,0.31],[0.55,0.43],[0.65,0.57]], bars: [0.61,0.33,'diagUp'], branches: [[0.50,0.57,0.05,0.12]] },
                 { paths: [[[0.33,0.30],[0.47,0.48],[0.33,0.67]], [[0.47,0.48],[0.65,0.48]], [[0.65,0.48],[0.69,0.34]]], anchors: [[0.33,0.30],[0.33,0.67],[0.69,0.34]], bars: [0.64,0.62,'diagDown'], branches: [[0.47,0.48,0.04,0.14]] }
             ];
@@ -1480,15 +1480,14 @@
                          anchor[1] + uy * reach - ny * reach * 0.55]
                     ], width * 0.94));
                 } else if (structureMode === 3) {
-                    // Zakrzywiony hak wychodzący z końca szkieletu.
-                    strokes.push(path(curvePoints(
+                    // Kątowy hak wychodzący z końca szkieletu.
+                    strokes.push(path([
                         anchor,
                         [anchor[0] + ux * reach + nx * reach * 0.75,
                          anchor[1] + uy * reach + ny * reach * 0.75],
                         [anchor[0] + nx * reach * 1.15,
-                         anchor[1] + ny * reach * 1.15],
-                        5
-                    ), width * 0.94));
+                         anchor[1] + ny * reach * 1.15]
+                    ], width * 0.94, 'branch'));
                 } else {
                     // Dodatkowy most tworzy trójkątną lub romboidalną komórkę.
                     const other = template.anchors[(anchorIndex + 1 + ((seed >>> 23) % (template.anchors.length - 1))) % template.anchors.length];
@@ -1502,14 +1501,17 @@
             // przy każdym znaku.
             const ringRoll = ((seed >>> 8) & 255) / 255;
             const ringIndex = (seed >>> 16) % template.anchors.length;
-            if (ringRoll < 0.44) {
+            let hasMarker = false;
+            if (ringRoll < 0.48) {
                 strokes.push(ring(template.anchors[ringIndex], 0.023 + rng() * 0.008));
+                hasMarker = true;
             }
 
             // Drugie zakończenie z pierścieniem jest rzadkie.
             if (((seed >>> 11) & 31) < 2) {
                 const secondIndex = (ringIndex + 1 + ((seed >>> 21) % (template.anchors.length - 1))) % template.anchors.length;
                 strokes.push(ring(template.anchors[secondIndex], 0.018 + rng() * 0.005));
+                hasMarker = true;
             }
 
             // Krótkie odgałęzienie zawsze wychodzi ze szkieletu, więc nie pływa
@@ -1518,7 +1520,7 @@
                 const branch = template.branches[(seed >>> 13) % template.branches.length];
                 const [x, y, dx, dy] = branch;
                 const branchScale = 0.78 + rng() * 0.28;
-                strokes.push(line([x, y], [x + dx * branchScale, y + dy * branchScale], width * 0.94));
+                strokes.push(line([x, y], [x + dx * branchScale, y + dy * branchScale], width * 0.94, 'branch'));
             }
 
             // Równoległe kreski występują tylko w części znaków i pozostają
@@ -1548,9 +1550,11 @@
                     strokes.push(line(
                         [cx - ux * barLength / 2, cy - uy * barLength / 2],
                         [cx + ux * barLength / 2, cy + uy * barLength / 2],
-                        width * 0.82
+                        width * 0.82,
+                        'marker'
                     ));
                 }
+                hasMarker = true;
             } else if (barsRoll < 0.58) {
                 // Łańcuch dwóch–czterech punktów odpowiada kropkowanym
                 // zakończeniom widocznym na materiale referencyjnym.
@@ -1571,6 +1575,7 @@
                         y + Math.sin(dotAngle) * offset
                     ]));
                 }
+                hasMarker = true;
             } else if (barsRoll > 0.91) {
                 // Mały znak kątowy uzupełnia repertuar kropek i kresek.
                 const [x, y, orientation] = template.bars;
@@ -1590,15 +1595,56 @@
                     [x - ux * arm, y - uy * arm],
                     [x, y],
                     [x + nx * arm, y + ny * arm]
-                ], width * 0.80));
+                ], width * 0.80, 'marker'));
+                hasMarker = true;
+            }
+
+            // Każdy wariant musi mieć kontrapunkt. Gdy losowanie nie dodało
+            // pierścienia, kropek ani kresek, dołącz spokojny moduł pomocniczy.
+            if (!hasMarker) {
+                const [markerX, markerY, markerOrientation] = template.bars;
+                const markerAngles = {
+                    horizontal: 0,
+                    vertical: Math.PI / 2,
+                    diagUp: -Math.PI / 4,
+                    diagDown: Math.PI / 4
+                };
+                const markerType = (seed >>> 29) % 3;
+                const markerAngle = markerAngles[markerOrientation] ?? 0;
+                const ux = Math.cos(markerAngle);
+                const uy = Math.sin(markerAngle);
+                const nx = -uy;
+                const ny = ux;
+
+                if (markerType === 0) {
+                    const length = 0.078;
+                    for (let i = -0.5; i <= 0.5; i++) {
+                        const offset = i * 0.022;
+                        strokes.push(line(
+                            [markerX - ux * length / 2 + nx * offset, markerY - uy * length / 2 + ny * offset],
+                            [markerX + ux * length / 2 + nx * offset, markerY + uy * length / 2 + ny * offset],
+                            width * 0.80,
+                            'marker'
+                        ));
+                    }
+                } else if (markerType === 1) {
+                    strokes.push(ring(template.anchors[ringIndex], 0.025));
+                } else {
+                    for (let i = -1; i <= 1; i++) {
+                        strokes.push(dot([
+                            markerX + ux * i * 0.026,
+                            markerY + uy * i * 0.026
+                        ]));
+                    }
+                }
             }
 
             // Transformacja całego glifu: mała rotacja, odbicie i minimalna
             // asymetria zachowują wygląd ręcznego pisma.
-            const angle = (-8 + rng() * 16) * Math.PI / 180;
-            const scaleX = 1.00 + rng() * 0.10;
-            const scaleY = 1.00 + rng() * 0.10;
-            const mirror = rng() > 0.76 ? -1 : 1;
+            const angle = (-5.5 + rng() * 11) * Math.PI / 180;
+            const scaleX = 0.97 + rng() * 0.07;
+            const scaleY = 0.97 + rng() * 0.07;
+            const mirror = rng() > 0.60 ? -1 : 1;
             const transformPoint = ([x, y]) => {
                 const dx = (x - 0.5) * scaleX * mirror;
                 const dy = (y - 0.5) * scaleY;
@@ -1619,7 +1665,7 @@
                     const dx = b[0] - a[0];
                     const dy = b[1] - a[1];
                     const length = Math.hypot(dx, dy) || 1;
-                    const bend = (rng() - 0.5) * 0.010;
+                    const bend = (rng() - 0.5) * 0.0045;
                     result.push([
                         (a[0] + b[0]) / 2 - dy / length * bend,
                         (a[1] + b[1]) / 2 + dx / length * bend
